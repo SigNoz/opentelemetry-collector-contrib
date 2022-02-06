@@ -15,11 +15,13 @@
 package clickhouseexporter
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +37,7 @@ const (
 // SpanWriter for writing spans to ClickHouse
 type SpanWriter struct {
 	logger     *zap.Logger
-	db         *sql.DB
+	db         clickhouse.Conn
 	indexTable string
 	errorTable string
 	encoding   Encoding
@@ -47,7 +49,7 @@ type SpanWriter struct {
 }
 
 // NewSpanWriter returns a SpanWriter for the database
-func NewSpanWriter(logger *zap.Logger, db *sql.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
+func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
 	writer := &SpanWriter{
 		logger:     logger,
 		db:         db,
@@ -123,29 +125,15 @@ func (w *SpanWriter) writeBatch(batch []*Span) error {
 }
 
 func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
-	tx, err := w.db.Begin()
+
+	ctx := context.Background()
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.indexTable))
 	if err != nil {
 		return err
 	}
-
-	commited := false
-
-	defer func() {
-		if !commited {
-			// Clickhouse does not support real rollback
-			_ = tx.Rollback()
-		}
-	}()
-
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s", w.indexTable))
-	if err != nil {
-		return err
-	}
-
-	defer statement.Close()
 
 	for _, span := range batchSpans {
-		_, err = statement.Exec(
+		err = statement.Append(
 			time.Unix(0, int64(span.StartTimeUnixNano)),
 			span.TraceId,
 			span.SpanId,
@@ -181,38 +169,22 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 		}
 	}
 
-	commited = true
-
-	return tx.Commit()
+	return statement.Send()
 }
 
 func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
-	tx, err := w.db.Begin()
+
+	ctx := context.Background()
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.errorTable))
 	if err != nil {
 		return err
 	}
-
-	commited := false
-
-	defer func() {
-		if !commited {
-			// Clickhouse does not support real rollback
-			_ = tx.Rollback()
-		}
-	}()
-
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s", w.errorTable))
-	if err != nil {
-		return err
-	}
-
-	defer statement.Close()
 
 	for _, span := range batchSpans {
 		if span.ErrorEvent.Name == "" {
 			continue
 		}
-		_, err = statement.Exec(
+		err = statement.Append(
 			time.Unix(0, int64(span.ErrorEvent.TimeUnixNano)),
 			span.ErrorID,
 			span.TraceId,
@@ -229,9 +201,7 @@ func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 		}
 	}
 
-	commited = true
-
-	return tx.Commit()
+	return statement.Send()
 }
 
 func NewNullString(s string) sql.NullString {
