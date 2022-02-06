@@ -15,11 +15,11 @@
 package clickhouseexporter
 
 import (
+	"database/sql"
 	"flag"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/spf13/viper"
 )
 
@@ -64,10 +64,10 @@ type namespaceConfig struct {
 }
 
 // Connecto defines how to connect to the database
-type Connector func(cfg *namespaceConfig) (*sqlx.DB, error)
+type Connector func(cfg *namespaceConfig) (*sql.DB, error)
 
-func defaultConnector(cfg *namespaceConfig) (*sqlx.DB, error) {
-	db, err := sqlx.Open("clickhouse", cfg.Datasource)
+func defaultConnector(cfg *namespaceConfig) (*sql.DB, error) {
+	db, err := sql.Open("clickhouse", cfg.Datasource)
 	if err != nil {
 		return nil, err
 	}

@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
 	"go.uber.org/zap"
 )
 
@@ -37,7 +35,7 @@ const (
 // SpanWriter for writing spans to ClickHouse
 type SpanWriter struct {
 	logger     *zap.Logger
-	db         *sqlx.DB
+	db         *sql.DB
 	indexTable string
 	errorTable string
 	encoding   Encoding
@@ -49,7 +47,7 @@ type SpanWriter struct {
 }
 
 // NewSpanWriter returns a SpanWriter for the database
-func NewSpanWriter(logger *zap.Logger, db *sqlx.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
+func NewSpanWriter(logger *zap.Logger, db *sql.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
 	writer := &SpanWriter{
 		logger:     logger,
 		db:         db,
@@ -124,7 +122,7 @@ func (w *SpanWriter) writeBatch(batch []*Span) error {
 	return nil
 }
 
-func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
+func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 	tx, err := w.db.Begin()
 	if err != nil {
 		return err
@@ -139,16 +137,16 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 		}
 	}()
 
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s (timestamp, traceID, spanID, parentSpanID, serviceName, name, kind, durationNano, tags, tagsKeys, tagsValues, statusCode, references, externalHttpMethod, externalHttpUrl, component, dbSystem, dbName, dbOperation, peerService, events, httpUrl, httpMethod, httpHost, httpRoute, httpCode, msgSystem, msgOperation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", w.indexTable))
+	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s", w.indexTable))
 	if err != nil {
 		return err
 	}
 
 	defer statement.Close()
 
-	for _, span := range batch {
+	for _, span := range batchSpans {
 		_, err = statement.Exec(
-			span.StartTimeUnixNano,
+			time.Unix(0, int64(span.StartTimeUnixNano)),
 			span.TraceId,
 			span.SpanId,
 			span.ParentSpanId,
@@ -161,13 +159,13 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 			span.TagsValues,
 			span.StatusCode,
 			span.GetReferences(),
-			NewNullString(span.ExternalHttpMethod),
-			NewNullString(span.ExternalHttpUrl),
-			NewNullString(span.Component),
-			NewNullString(span.DBSystem),
-			NewNullString(span.DBName),
-			NewNullString(span.DBOperation),
-			NewNullString(span.PeerService),
+			span.ExternalHttpMethod,
+			span.ExternalHttpUrl,
+			span.Component,
+			span.DBSystem,
+			span.DBName,
+			span.DBOperation,
+			span.PeerService,
 			span.Events,
 			span.HttpUrl,
 			span.HttpMethod,
@@ -176,6 +174,7 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 			span.HttpCode,
 			span.MsgSystem,
 			span.MsgOperation,
+			span.TagMap,
 		)
 		if err != nil {
 			return err
@@ -187,7 +186,7 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 	return tx.Commit()
 }
 
-func (w *SpanWriter) writeErrorBatch(batch []*Span) error {
+func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 	tx, err := w.db.Begin()
 	if err != nil {
 		return err
@@ -202,19 +201,19 @@ func (w *SpanWriter) writeErrorBatch(batch []*Span) error {
 		}
 	}()
 
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s (timestamp, errorID, traceID, spanID, parentSpanID, serviceName, exceptionType, exceptionMessage, excepionStacktrace, exceptionEscaped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", w.errorTable))
+	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s", w.errorTable))
 	if err != nil {
 		return err
 	}
 
 	defer statement.Close()
 
-	for _, span := range batch {
+	for _, span := range batchSpans {
 		if span.ErrorEvent.Name == "" {
 			continue
 		}
 		_, err = statement.Exec(
-			span.ErrorEvent.TimeUnixNano,
+			time.Unix(0, int64(span.ErrorEvent.TimeUnixNano)),
 			span.ErrorID,
 			span.TraceId,
 			span.SpanId,

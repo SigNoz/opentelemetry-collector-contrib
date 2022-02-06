@@ -148,8 +148,12 @@ github.com/ClickHouse/clickhouse-go v1.4.3 h1:iAFMa2UrQdR5bHJ2/yaSLffZkxpcOYQMCU
 github.com/ClickHouse/clickhouse-go v1.4.3/go.mod h1:EaI/sW7Azgz9UATzd5ZdZHRUhHgv5+JMS9NSr2smCJI=
 github.com/ClickHouse/clickhouse-go v1.5.3 h1:Vok8zUb/wlqc9u8oEqQzBMBRDoFd8NxPRqgYEqMnV88=
 github.com/ClickHouse/clickhouse-go v1.5.3/go.mod h1:EaI/sW7Azgz9UATzd5ZdZHRUhHgv5+JMS9NSr2smCJI=
+github.com/ClickHouse/clickhouse-go/v2 v2.0.0-beta.17.0.20220202082805-2ca84a2858dd h1:5CAzYPHOJ/CDLOlUEB4YvGdC9BA8K4i0WCrUQ8dIQng=
+github.com/ClickHouse/clickhouse-go/v2 v2.0.0-beta.17.0.20220202082805-2ca84a2858dd/go.mod h1:jUpdaFNDXwquubjKBTFop3mjYzP0kM7J9c86Tb/XzIs=
 github.com/ClickHouse/clickhouse-go/v2 v2.0.3 h1:Lv7QiKRPBgRsnMm+PkKgpJB6gh1KPlHLDbLkANDjag0=
 github.com/ClickHouse/clickhouse-go/v2 v2.0.3/go.mod h1:jUpdaFNDXwquubjKBTFop3mjYzP0kM7J9c86Tb/XzIs=
+github.com/ClickHouse/clickhouse-go/v2 v2.0.9-0.20220206080700-bc9a3f901e5c h1:443xYN27Jn4tj1DUf917d9fIAaCENyuNvrnltENRpa8=
+github.com/ClickHouse/clickhouse-go/v2 v2.0.9-0.20220206080700-bc9a3f901e5c/go.mod h1:jUpdaFNDXwquubjKBTFop3mjYzP0kM7J9c86Tb/XzIs=
 github.com/CloudyKit/fastprinter v0.0.0-20200109182630-33d98a066a53/go.mod h1:+3IMCy2vIlbG1XG/0ggNQv0SvxCAIpPM5b1nCz56Xno=
 github.com/CloudyKit/jet/v3 v3.0.0/go.mod h1:HKQPgSJmdK8hdoAbKUUWajkHyHo4RaU5rMdUywE7VMo=
 github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=

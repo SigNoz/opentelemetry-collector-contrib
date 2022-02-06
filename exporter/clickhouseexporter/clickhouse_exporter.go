@@ -204,15 +204,18 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 	var tagsKeys []string
 	var tagsValues []string
 	var tag string
+	tagMap := map[string]string{}
 
 	attributes.Range(func(k string, v pdata.AttributeValue) bool {
 		v.StringVal()
 		if v.Type().String() == "INT" {
 			tag = fmt.Sprintf("%s:%d", k, v.IntVal())
 			tagsValues = append(tagsValues, strconv.FormatInt(v.IntVal(), 10))
+			tagMap[k] = strconv.FormatInt(v.IntVal(), 10)
 		} else {
 			tag = fmt.Sprintf("%s:%s", k, v.StringVal())
 			tagsValues = append(tagsValues, v.StringVal())
+			tagMap[k] = v.StringVal()
 		}
 
 		tags = append(tags, tag)
@@ -236,6 +239,7 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 		Tags:              tags,
 		TagsKeys:          tagsKeys,
 		TagsValues:        tagsValues,
+		TagMap:            tagMap,
 	}
 	span.StatusCode = int64(otelSpan.Status().Code())
 
