@@ -1,34 +1,34 @@
 receivers:
-  otlp:
-    protocols:
-      grpc:
-      http:
-  jaeger:
-    protocols:
-      grpc:
-      thrift_http:
-  # hostmetrics:
-  #   collection_interval: 10s
-  #   scrapers:
-  #     load:
-  #     memory:
+  # otlp:
+  #   protocols:
+  #     grpc:
+  #     http:
+  # jaeger:
+  #   protocols:
+  #     grpc:
+  #     thrift_http:
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      load:
+      memory:
   # redis:
   #   endpoint: "localhost:6379"
   #   service_name: "my-test-redis"
   #   collection_interval: 10s
   #   # password: $REDIS_PASSWORD
-# processors:
-#   resourcedetection:
-#     detectors: [env, system]
-#     timeout: 2s
-#     override: false
+processors:
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+    override: false
 #   signozspanmetrics:
 #     metrics_exporter: clickhousemetricswrite
 #   signozspanmetrics/prometheus:
 #     metrics_exporter: prometheus
-#   batch:
-#     send_batch_size: 1000
-#     timeout: 1s
+  batch:
+    send_batch_size: 1000
+    timeout: 1s
 #   memory_limiter:
 #     # Same as --mem-ballast-size-mib CLI argument
 #     ballast_size_mib: 683
@@ -52,19 +52,15 @@ exporters:
   clickhouse:
     datasource: http://localhost:9000
     migrations: ../../exporter/clickhouseexporter/migrations
-  # clickhousemetricswrite:
-  #   endpoint: http://localhost:9000/?database=signoz_metrics
-  #   resource_to_telemetry_conversion:
-  #     enabled: true
+  clickhousemetricswrite:
+    endpoint: http://localhost:9000/?database=signoz_metrics
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   extensions: [health_check, zpages]
   pipelines:
-    traces:
-      receivers: [jaeger, otlp]
-      # processors: [signozspanmetrics, batch]
-      exporters: [clickhouse]
-    # metrics:
-    #   receivers: [otlp]
-    #   processors: [batch]
-    #   exporters: [clickhousemetricswrite]
+    metrics:
+      receivers: [hostmetrics]
+      processors: [batch]
+      exporters: [clickhousemetricswrite]
