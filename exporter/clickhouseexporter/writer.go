@@ -205,16 +205,6 @@ func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 	return statement.Send()
 }
 
-func NewNullString(s string) sql.NullString {
-	if len(s) == 0 {
-		return sql.NullString{}
-	}
-	return sql.NullString{
-		String: s,
-		Valid:  true,
-	}
-}
-
 // WriteSpan writes the encoded span
 func (w *SpanWriter) WriteSpan(span *Span) error {
 	w.spans <- span
