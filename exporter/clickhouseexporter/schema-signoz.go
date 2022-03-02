@@ -20,6 +20,7 @@ type Event struct {
 	Name         string            `json:"name,omitempty"`
 	TimeUnixNano uint64            `json:"timeUnixNano,omitempty"`
 	AttributeMap map[string]string `json:"attributeMap,omitempty"`
+	IsError      bool              `json:"isError,omitempty"`
 }
 
 type Span struct {
@@ -53,6 +54,7 @@ type Span struct {
 	Events             []string      `json:"event,omitempty"`
 	ErrorEvent         Event         `json:"errorEvent,omitempty"`
 	ErrorID            string        `json:"errorID,omitempty"`
+	HasError           int32         `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
 }
 
 type OtelSpanRef struct {
