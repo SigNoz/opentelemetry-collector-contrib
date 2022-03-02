@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/ClickHouse/clickhouse-go" // register SQL driver
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -105,10 +105,13 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	q.Del("database")
 	initURL := dsnURL
 	initURL.RawQuery = q.Encode()
-	initDB, err := sql.Open("clickhouse", initURL.String())
-	if err != nil {
-		return nil, err
-	}
+	initDB := clickhouse.OpenDB(&clickhouse.Options{
+		Addr:            []string{initURL.String()},
+		ConnMaxLifetime: 0,
+		MaxOpenConns:    params.MaxOpenConns,
+		MaxIdleConns:    2,
+	})
+
 	defer initDB.Close()
 	for _, q := range queries {
 		q = strings.TrimSpace(q)
@@ -119,13 +122,12 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	}
 
 	// reconnect to created database
-	db, err := sql.Open("clickhouse", params.DSN)
-	if err != nil {
-		return nil, err
-	}
-	db.SetConnMaxLifetime(0)
-	db.SetMaxIdleConns(2)
-	db.SetMaxOpenConns(params.MaxOpenConns)
+	db := clickhouse.OpenDB(&clickhouse.Options{
+		Addr:            []string{params.DSN},
+		ConnMaxLifetime: 0,
+		MaxOpenConns:    params.MaxOpenConns,
+		MaxIdleConns:    2,
+	})
 
 	ch := &clickHouse{
 		db:                   db,
