@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -119,15 +120,21 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 	attributes.Range(func(k string, v pdata.AttributeValue) bool {
 		if k == "http.status_code" {
 			span.StatusCode = v.IntVal()
-		}
-		if k == "http.url" && span.Kind == 2 {
-			span.ExternalHttpUrl = v.StringVal()
-		}
-		if k == "http.method" && span.Kind == 2 {
-			span.ExternalHttpMethod = v.StringVal()
-		}
-		if k == "http.status_code" {
+			if span.StatusCode >= 400 {
+				span.HasError = 1
+			}
 			span.HttpCode = strconv.FormatInt(v.IntVal(), 10)
+		}
+		if k == "http.url" && span.Kind == 3 {
+			value := v.StringVal()
+			valueUrl, err := url.Parse(value)
+			if err == nil {
+				value = valueUrl.Hostname()
+			}
+			span.ExternalHttpUrl = value
+		}
+		if k == "http.method" && span.Kind == 3 {
+			span.ExternalHttpMethod = v.StringVal()
 		}
 		if k == "http.url" {
 			span.HttpUrl = v.StringVal()
@@ -175,6 +182,7 @@ func populateEvents(events pdata.SpanEventSlice, span *Span) {
 		event.Name = events.At(i).Name()
 		event.TimeUnixNano = uint64(events.At(i).Timestamp())
 		event.AttributeMap = map[string]string{}
+		event.IsError = false
 		events.At(i).Attributes().Range(func(k string, v pdata.AttributeValue) bool {
 			if v.Type().String() == "INT" {
 				event.AttributeMap[k] = strconv.FormatInt(v.IntVal(), 10)
@@ -183,14 +191,15 @@ func populateEvents(events pdata.SpanEventSlice, span *Span) {
 			}
 			return true
 		})
-		stringEvent, _ := json.Marshal(event)
-		span.Events = append(span.Events, string(stringEvent))
 		if event.Name == "exception" {
+			event.IsError = true
 			span.ErrorEvent = event
 			uuidWithHyphen := uuid.New()
 			uuid := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
 			span.ErrorID = uuid
 		}
+		stringEvent, _ := json.Marshal(event)
+		span.Events = append(span.Events, string(stringEvent))
 	}
 }
 
@@ -240,9 +249,13 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 		TagsKeys:          tagsKeys,
 		TagsValues:        tagsValues,
 		TagMap:            tagMap,
+		HasError:          0,
 	}
 	span.StatusCode = int64(otelSpan.Status().Code())
 
+	if span.StatusCode == 2 {
+		span.HasError = 1
+	}
 	populateOtherDimensions(attributes, span)
 	populateEvents(otelSpan.Events(), span)
 

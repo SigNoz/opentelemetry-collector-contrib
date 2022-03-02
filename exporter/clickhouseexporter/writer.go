@@ -162,6 +162,7 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 			span.HttpCode,
 			span.MsgSystem,
 			span.MsgOperation,
+			span.HasError,
 			span.TagMap,
 		)
 		if err != nil {
