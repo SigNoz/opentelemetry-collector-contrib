@@ -1,4 +1,4 @@
-module github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanmetricsprocessor
+module github.com/open-telemetry/opentelemetry-collector-contrib/processor/signozspanmetricsprocessor
 
 go 1.17
 

@@ -16,7 +16,6 @@ package clickhouseexporter
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sync"
 	"time"
