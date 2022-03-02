@@ -56,10 +56,10 @@ exporters:
   clickhouse:
     datasource: http://localhost:9000
     migrations: ../../exporter/clickhouseexporter/migrations
-  # clickhousemetricswrite:
-  #   endpoint: http://localhost:9000/?database=signoz_metrics
-  #   resource_to_telemetry_conversion:
-  #     enabled: true
+  clickhousemetricswrite:
+    endpoint: http://localhost:9000/?database=signoz_metrics
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   extensions: [health_check, zpages]
@@ -68,10 +68,10 @@ service:
       receivers: [jaeger, otlp]
       processors: [signozspanmetrics/prometheus, batch]
       exporters: [clickhouse]
-    # metrics:
-    #   receivers: [otlp]
-    #   processors: [batch]
-    #   exporters: [clickhousemetricswrite]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [clickhousemetricswrite]
     metrics/spanmetrics:
       receivers: [otlp/spanmetrics]
       exporters: [prometheus]
