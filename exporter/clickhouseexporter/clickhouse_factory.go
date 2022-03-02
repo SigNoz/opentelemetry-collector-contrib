@@ -20,10 +20,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
-	_ "github.com/ClickHouse/clickhouse-go"
-
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -35,8 +32,8 @@ import (
 type Factory struct {
 	logger     *zap.Logger
 	Options    *Options
-	db         *sqlx.DB
-	archive    *sqlx.DB
+	db         clickhouse.Conn
+	archive    clickhouse.Conn
 	datasource string
 	makeWriter writerMaker
 }
@@ -46,16 +43,16 @@ type Writer interface {
 	WriteSpan(span *Span) error
 }
 
-type writerMaker func(logger *zap.Logger, db *sqlx.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) (Writer, error)
+type writerMaker func(logger *zap.Logger, db clickhouse.Conn, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) (Writer, error)
 
 // NewFactory creates a new Factory.
 func ClickHouseNewFactory(migrations string, datasource string) *Factory {
 	return &Factory{
 		Options: NewOptions(migrations, datasource, primaryNamespace, archiveNamespace),
-		// makeReader: func(db *sql.DB, operationsTable, indexTable, spansTable string) (spanstore.Reader, error) {
+		// makeReader: func(db *clickhouse.Conn, operationsTable, indexTable, spansTable string) (spanstore.Reader, error) {
 		// 	return store.NewTraceReader(db, operationsTable, indexTable, spansTable), nil
 		// },
-		makeWriter: func(logger *zap.Logger, db *sqlx.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) (Writer, error) {
+		makeWriter: func(logger *zap.Logger, db clickhouse.Conn, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) (Writer, error) {
 			return NewSpanWriter(logger, db, indexTable, errorTable, encoding, delay, size), nil
 		},
 	}
@@ -85,7 +82,7 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 	m1 := regexp.MustCompile(`(\w+)://`)
 	fmt.Println("Running migrations with path: ", f.Options.primary.Migrations)
 	clickhouseUrl := m1.ReplaceAllString(f.Options.primary.Datasource, "")
-	clickhouseUrl = fmt.Sprintf("clickhouse://%s/database=default&x-multi-statement=true", clickhouseUrl)
+	clickhouseUrl = fmt.Sprintf("clickhouse://%s?/database=default&x-multi-statement=true", clickhouseUrl)
 	m, err := migrate.New(
 		"file://"+f.Options.primary.Migrations,
 		clickhouseUrl)
@@ -97,7 +94,7 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 	return nil
 }
 
-func (f *Factory) connect(cfg *namespaceConfig) (*sqlx.DB, error) {
+func (f *Factory) connect(cfg *namespaceConfig) (clickhouse.Conn, error) {
 	if cfg.Encoding != EncodingJSON && cfg.Encoding != EncodingProto {
 		return nil, fmt.Errorf("unknown encoding %q, supported: %q, %q", cfg.Encoding, EncodingJSON, EncodingProto)
 	}

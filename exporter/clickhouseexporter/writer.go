@@ -15,13 +15,13 @@
 package clickhouseexporter
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +37,7 @@ const (
 // SpanWriter for writing spans to ClickHouse
 type SpanWriter struct {
 	logger     *zap.Logger
-	db         *sqlx.DB
+	db         clickhouse.Conn
 	indexTable string
 	errorTable string
 	encoding   Encoding
@@ -49,7 +49,7 @@ type SpanWriter struct {
 }
 
 // NewSpanWriter returns a SpanWriter for the database
-func NewSpanWriter(logger *zap.Logger, db *sqlx.DB, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
+func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
 	writer := &SpanWriter{
 		logger:     logger,
 		db:         db,
@@ -124,31 +124,17 @@ func (w *SpanWriter) writeBatch(batch []*Span) error {
 	return nil
 }
 
-func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
-	tx, err := w.db.Begin()
+func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
+
+	ctx := context.Background()
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.indexTable))
 	if err != nil {
 		return err
 	}
 
-	commited := false
-
-	defer func() {
-		if !commited {
-			// Clickhouse does not support real rollback
-			_ = tx.Rollback()
-		}
-	}()
-
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s (timestamp, traceID, spanID, parentSpanID, serviceName, name, kind, durationNano, tags, tagsKeys, tagsValues, statusCode, references, externalHttpMethod, externalHttpUrl, component, dbSystem, dbName, dbOperation, peerService, events, httpUrl, httpMethod, httpHost, httpRoute, httpCode, msgSystem, msgOperation, hasError) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", w.indexTable))
-	if err != nil {
-		return err
-	}
-
-	defer statement.Close()
-
-	for _, span := range batch {
-		_, err = statement.Exec(
-			span.StartTimeUnixNano,
+	for _, span := range batchSpans {
+		err = statement.Append(
+			time.Unix(0, int64(span.StartTimeUnixNano)),
 			span.TraceId,
 			span.SpanId,
 			span.ParentSpanId,
@@ -161,13 +147,13 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 			span.TagsValues,
 			span.StatusCode,
 			span.GetReferences(),
-			NewNullString(span.ExternalHttpMethod),
-			NewNullString(span.ExternalHttpUrl),
-			NewNullString(span.Component),
-			NewNullString(span.DBSystem),
-			NewNullString(span.DBName),
-			NewNullString(span.DBOperation),
-			NewNullString(span.PeerService),
+			span.ExternalHttpMethod,
+			span.ExternalHttpUrl,
+			span.Component,
+			span.DBSystem,
+			span.DBName,
+			span.DBOperation,
+			span.PeerService,
 			span.Events,
 			span.HttpUrl,
 			span.HttpMethod,
@@ -177,45 +163,30 @@ func (w *SpanWriter) writeIndexBatch(batch []*Span) error {
 			span.MsgSystem,
 			span.MsgOperation,
 			span.HasError,
+			span.TagMap,
 		)
 		if err != nil {
 			return err
 		}
 	}
 
-	commited = true
-
-	return tx.Commit()
+	return statement.Send()
 }
 
-func (w *SpanWriter) writeErrorBatch(batch []*Span) error {
-	tx, err := w.db.Begin()
+func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
+
+	ctx := context.Background()
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.errorTable))
 	if err != nil {
 		return err
 	}
 
-	commited := false
-
-	defer func() {
-		if !commited {
-			// Clickhouse does not support real rollback
-			_ = tx.Rollback()
-		}
-	}()
-
-	statement, err := tx.Prepare(fmt.Sprintf("INSERT INTO %s (timestamp, errorID, traceID, spanID, parentSpanID, serviceName, exceptionType, exceptionMessage, excepionStacktrace, exceptionEscaped) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", w.errorTable))
-	if err != nil {
-		return err
-	}
-
-	defer statement.Close()
-
-	for _, span := range batch {
+	for _, span := range batchSpans {
 		if span.ErrorEvent.Name == "" {
 			continue
 		}
-		_, err = statement.Exec(
-			span.ErrorEvent.TimeUnixNano,
+		err = statement.Append(
+			time.Unix(0, int64(span.ErrorEvent.TimeUnixNano)),
 			span.ErrorID,
 			span.TraceId,
 			span.SpanId,
@@ -231,19 +202,7 @@ func (w *SpanWriter) writeErrorBatch(batch []*Span) error {
 		}
 	}
 
-	commited = true
-
-	return tx.Commit()
-}
-
-func NewNullString(s string) sql.NullString {
-	if len(s) == 0 {
-		return sql.NullString{}
-	}
-	return sql.NullString{
-		String: s,
-		Valid:  true,
-	}
+	return statement.Send()
 }
 
 // WriteSpan writes the encoded span

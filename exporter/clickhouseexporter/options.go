@@ -15,11 +15,12 @@
 package clickhouseexporter
 
 import (
+	"context"
 	"flag"
+	"regexp"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/spf13/viper"
 )
 
@@ -64,15 +65,22 @@ type namespaceConfig struct {
 }
 
 // Connecto defines how to connect to the database
-type Connector func(cfg *namespaceConfig) (*sqlx.DB, error)
+type Connector func(cfg *namespaceConfig) (clickhouse.Conn, error)
 
-func defaultConnector(cfg *namespaceConfig) (*sqlx.DB, error) {
-	db, err := sqlx.Open("clickhouse", cfg.Datasource)
+func defaultConnector(cfg *namespaceConfig) (clickhouse.Conn, error) {
+	ctx := context.Background()
+	// Regex to match protocol eg: http:// or tcp://
+	m1 := regexp.MustCompile(`(\w+)://`)
+	clickhouseUrl := m1.ReplaceAllString(cfg.Datasource, "")
+
+	db, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{clickhouseUrl},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.Ping(); err != nil {
+	if err := db.Ping(ctx); err != nil {
 		return nil, err
 	}
 

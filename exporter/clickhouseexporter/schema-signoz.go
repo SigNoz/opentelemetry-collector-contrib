@@ -24,37 +24,38 @@ type Event struct {
 }
 
 type Span struct {
-	TraceId            string        `json:"traceId,omitempty"`
-	SpanId             string        `json:"spanId,omitempty"`
-	ParentSpanId       string        `json:"parentSpanId,omitempty"`
-	Name               string        `json:"name,omitempty"`
-	DurationNano       uint64        `json:"durationNano,omitempty"`
-	StartTimeUnixNano  uint64        `json:"startTimeUnixNano,omitempty"`
-	ServiceName        string        `json:"serviceName,omitempty"`
-	Kind               int32         `json:"kind,omitempty"`
-	References         []OtelSpanRef `json:"references,omitempty"`
-	Tags               []string      `json:"tags,omitempty"`
-	TagsKeys           []string      `json:"tagsKeys,omitempty"`
-	TagsValues         []string      `json:"tagsValues,omitempty"`
-	StatusCode         int64         `json:"statusCode,omitempty"`
-	ExternalHttpMethod string        `json:"externalHttpMethod,omitempty"`
-	HttpUrl            string        `json:"httpUrl,omitempty"`
-	HttpMethod         string        `json:"httpMethod,omitempty"`
-	HttpHost           string        `json:"httpHost,omitempty"`
-	HttpRoute          string        `json:"httpRoute,omitempty"`
-	HttpCode           string        `json:"httpCode,omitempty"`
-	MsgSystem          string        `json:"msgSystem,omitempty"`
-	MsgOperation       string        `json:"msgOperation,omitempty"`
-	ExternalHttpUrl    string        `json:"externalHttpUrl,omitempty"`
-	Component          string        `json:"component,omitempty"`
-	DBSystem           string        `json:"dbSystem,omitempty"`
-	DBName             string        `json:"dbName,omitempty"`
-	DBOperation        string        `json:"dbOperation,omitempty"`
-	PeerService        string        `json:"peerService,omitempty"`
-	Events             []string      `json:"event,omitempty"`
-	ErrorEvent         Event         `json:"errorEvent,omitempty"`
-	ErrorID            string        `json:"errorID,omitempty"`
-	HasError           int32         `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
+	TraceId            string            `json:"traceId,omitempty"`
+	SpanId             string            `json:"spanId,omitempty"`
+	ParentSpanId       string            `json:"parentSpanId,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	DurationNano       uint64            `json:"durationNano,omitempty"`
+	StartTimeUnixNano  uint64            `json:"startTimeUnixNano,omitempty"`
+	ServiceName        string            `json:"serviceName,omitempty"`
+	Kind               int32             `json:"kind,omitempty"`
+	References         []OtelSpanRef     `json:"references,omitempty"`
+	Tags               []string          `json:"tags,omitempty"`
+	TagsKeys           []string          `json:"tagsKeys,omitempty"`
+	TagsValues         []string          `json:"tagsValues,omitempty"`
+	StatusCode         int64             `json:"statusCode,omitempty"`
+	ExternalHttpMethod string            `json:"externalHttpMethod,omitempty"`
+	HttpUrl            string            `json:"httpUrl,omitempty"`
+	HttpMethod         string            `json:"httpMethod,omitempty"`
+	HttpHost           string            `json:"httpHost,omitempty"`
+	HttpRoute          string            `json:"httpRoute,omitempty"`
+	HttpCode           string            `json:"httpCode,omitempty"`
+	MsgSystem          string            `json:"msgSystem,omitempty"`
+	MsgOperation       string            `json:"msgOperation,omitempty"`
+	ExternalHttpUrl    string            `json:"externalHttpUrl,omitempty"`
+	Component          string            `json:"component,omitempty"`
+	DBSystem           string            `json:"dbSystem,omitempty"`
+	DBName             string            `json:"dbName,omitempty"`
+	DBOperation        string            `json:"dbOperation,omitempty"`
+	PeerService        string            `json:"peerService,omitempty"`
+	Events             []string          `json:"event,omitempty"`
+	ErrorEvent         Event             `json:"errorEvent,omitempty"`
+	ErrorID            string            `json:"errorID,omitempty"`
+	TagMap             map[string]string `json:"tagMap,omitempty"`
+	HasError           int32             `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
 }
 
 type OtelSpanRef struct {
