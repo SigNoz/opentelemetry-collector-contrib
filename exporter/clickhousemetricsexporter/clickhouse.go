@@ -292,8 +292,10 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			args[0] = model.Now().Time()
 			for _, f := range newTimeSeries {
 				args[1] = f
-				args[2] = marshalLabels(timeSeries[f], make([]byte, 0, 128))
-				// ch.l.Debugf("%s %v", query, args)
+				args[2] = string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
+
+				// ch.l.Infof("%s %v", query, args)
+
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
