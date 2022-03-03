@@ -124,49 +124,36 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 				span.HasError = 1
 			}
 			span.HttpCode = strconv.FormatInt(v.IntVal(), 10)
-		}
-		if k == "http.url" && span.Kind == 3 {
+		} else if k == "http.url" && span.Kind == 3 {
 			value := v.StringVal()
 			valueUrl, err := url.Parse(value)
 			if err == nil {
 				value = valueUrl.Hostname()
 			}
 			span.ExternalHttpUrl = value
-		}
-		if k == "http.method" && span.Kind == 3 {
+		} else if k == "http.method" && span.Kind == 3 {
 			span.ExternalHttpMethod = v.StringVal()
-		}
-		if k == "http.url" {
+		} else if k == "http.url" && span.Kind != 3 {
 			span.HttpUrl = v.StringVal()
-		}
-		if k == "http.method" {
+		} else if k == "http.method" && span.Kind != 3 {
 			span.HttpMethod = v.StringVal()
-		}
-		if k == "http.route" {
-			span.HttpMethod = v.StringVal()
-		}
-		if k == "http.host" {
+		} else if k == "http.route" {
+			span.HttpRoute = v.StringVal()
+		} else if k == "http.host" {
 			span.HttpHost = v.StringVal()
-		}
-		if k == "messaging.system" {
+		} else if k == "messaging.system" {
 			span.MsgSystem = v.StringVal()
-		}
-		if k == "messaging.operation" {
+		} else if k == "messaging.operation" {
 			span.MsgOperation = v.StringVal()
-		}
-		if k == "component" {
+		} else if k == "component" {
 			span.Component = v.StringVal()
-		}
-		if k == "db.system" {
+		} else if k == "db.system" {
 			span.DBSystem = v.StringVal()
-		}
-		if k == "db.name" {
+		} else if k == "db.name" {
 			span.DBName = v.StringVal()
-		}
-		if k == "db.operation" {
+		} else if k == "db.operation" {
 			span.DBOperation = v.StringVal()
-		}
-		if k == "peer.service" {
+		} else if k == "peer.service" {
 			span.PeerService = v.StringVal()
 		}
 
