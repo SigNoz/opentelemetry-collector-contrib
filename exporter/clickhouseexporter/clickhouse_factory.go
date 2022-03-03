@@ -82,15 +82,15 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 	m1 := regexp.MustCompile(`(\w+)://`)
 	fmt.Println("Running migrations with path: ", f.Options.primary.Migrations)
 	clickhouseUrl := m1.ReplaceAllString(f.Options.primary.Datasource, "")
-	clickhouseUrl = fmt.Sprintf("clickhouse://%s?/database=default&x-multi-statement=true", clickhouseUrl)
+	clickhouseUrl = fmt.Sprintf("clickhouse://%s?database=default&x-multi-statement=true", clickhouseUrl)
 	m, err := migrate.New(
 		"file://"+f.Options.primary.Migrations,
 		clickhouseUrl)
 	if err != nil {
 		return fmt.Errorf("Clickhouse Migrate failed to run, error: %s", err)
 	}
-	m.Up()
-
+	err = m.Up()
+	f.logger.Info("Clickhouse Migrate finished", zap.Error(err))
 	return nil
 }
 
