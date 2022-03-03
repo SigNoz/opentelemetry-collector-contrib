@@ -105,12 +105,20 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	q.Del("database")
 	initURL := dsnURL
 	initURL.RawQuery = q.Encode()
+	// clickHouseUrl := initURL.String()
+
+	clickHouseUrl := initURL.Host
 	initDB := clickhouse.OpenDB(&clickhouse.Options{
-		Addr:            []string{initURL.String()},
-		ConnMaxLifetime: 0,
-		MaxOpenConns:    params.MaxOpenConns,
-		MaxIdleConns:    2,
+		Addr: []string{clickHouseUrl},
 	})
+	initDB.SetConnMaxIdleTime(2)
+	initDB.SetMaxOpenConns(params.MaxOpenConns)
+	initDB.SetConnMaxLifetime(0)
+
+	if err != nil {
+		fmt.Errorf("Could not connect to clickhouse: ", err)
+		return nil, err
+	}
 
 	defer initDB.Close()
 	for _, q := range queries {
@@ -119,15 +127,16 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		if _, err = initDB.Exec(q); err != nil {
 			return nil, err
 		}
+
 	}
 
 	// reconnect to created database
 	db := clickhouse.OpenDB(&clickhouse.Options{
-		Addr:            []string{params.DSN},
-		ConnMaxLifetime: 0,
-		MaxOpenConns:    params.MaxOpenConns,
-		MaxIdleConns:    2,
+		Addr: []string{clickHouseUrl},
 	})
+	db.SetMaxIdleConns(2)
+	db.SetMaxOpenConns(params.MaxOpenConns)
+	db.SetConnMaxLifetime(0)
 
 	ch := &clickHouse{
 		db:                   db,
