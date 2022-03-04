@@ -106,14 +106,14 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	}
 	if dsnURL.Query().Get("username") != "" {
 		auth := clickhouse.Auth{
-			Database: database,
+			// Database: "",
 			Username: dsnURL.Query().Get("username"),
 			Password: dsnURL.Query().Get("password"),
 		}
 
 		options.Auth = auth
 	}
-
+	// fmt.Println(options)
 	initDB := clickhouse.OpenDB(options)
 
 	initDB.SetConnMaxIdleTime(2)
@@ -125,7 +125,6 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		return nil, err
 	}
 
-	defer initDB.Close()
 	for _, q := range queries {
 		q = strings.TrimSpace(q)
 		l.Infof("Executing:\n%s", q)
