@@ -65,6 +65,7 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	l := logrus.WithField("component", "clickhouse")
 
 	dsnURL, err := url.Parse(params.DSN)
+
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +101,21 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 			PARTITION BY toDate(timestamp_ms / 1000)
 			ORDER BY (fingerprint, timestamp_ms)`, database))
 
-	// connect without seting database, init schema
-	q := dsnURL.Query()
-	q.Del("database")
-	initURL := dsnURL
-	initURL.RawQuery = q.Encode()
-	// clickHouseUrl := initURL.String()
+	options := &clickhouse.Options{
+		Addr: []string{dsnURL.Host},
+	}
+	if dsnURL.Query().Get("username") != "" {
+		auth := clickhouse.Auth{
+			Database: database,
+			Username: dsnURL.Query().Get("username"),
+			Password: dsnURL.Query().Get("password"),
+		}
 
-	clickHouseUrl := initURL.Host
-	initDB := clickhouse.OpenDB(&clickhouse.Options{
-		Addr: []string{clickHouseUrl},
-	})
+		options.Auth = auth
+	}
+
+	initDB := clickhouse.OpenDB(options)
+
 	initDB.SetConnMaxIdleTime(2)
 	initDB.SetMaxOpenConns(params.MaxOpenConns)
 	initDB.SetConnMaxLifetime(0)
@@ -130,16 +135,8 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 
 	}
 
-	// reconnect to created database
-	db := clickhouse.OpenDB(&clickhouse.Options{
-		Addr: []string{clickHouseUrl},
-	})
-	db.SetMaxIdleConns(2)
-	db.SetMaxOpenConns(params.MaxOpenConns)
-	db.SetConnMaxLifetime(0)
-
 	ch := &clickHouse{
-		db:                   db,
+		db:                   initDB,
 		l:                    l,
 		database:             database,
 		maxTimeSeriesInQuery: params.MaxTimeSeriesInQuery,
