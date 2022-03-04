@@ -16,6 +16,7 @@ package clickhouseexporter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ type SpanWriter struct {
 	db         clickhouse.Conn
 	indexTable string
 	errorTable string
+	spansTable string
 	encoding   Encoding
 	delay      time.Duration
 	size       int
@@ -48,12 +50,13 @@ type SpanWriter struct {
 }
 
 // NewSpanWriter returns a SpanWriter for the database
-func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
+func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, spansTable string, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
 	writer := &SpanWriter{
 		logger:     logger,
 		db:         db,
 		indexTable: indexTable,
 		errorTable: errorTable,
+		spansTable: spansTable,
 		encoding:   encoding,
 		delay:      delay,
 		size:       size,
@@ -109,6 +112,11 @@ func (w *SpanWriter) backgroundWriter() {
 
 func (w *SpanWriter) writeBatch(batch []*Span) error {
 
+	if w.spansTable != "" {
+		if err := w.writeModelBatch(batch); err != nil {
+			return err
+		}
+	}
 	if w.indexTable != "" {
 		if err := w.writeIndexBatch(batch); err != nil {
 			return err
@@ -196,6 +204,31 @@ func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 			span.ErrorEvent.AttributeMap["exception.stacktrace"],
 			span.ErrorEvent.AttributeMap["exception.escaped"],
 		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return statement.Send()
+}
+
+func (w *SpanWriter) writeModelBatch(batchSpans []*Span) error {
+	ctx := context.Background()
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.spansTable))
+	if err != nil {
+		return err
+	}
+
+	for _, span := range batchSpans {
+		var serialized []byte
+
+		serialized, err = json.Marshal(span)
+
+		if err != nil {
+			return err
+		}
+
+		err = statement.Append(time.Unix(0, int64(span.StartTimeUnixNano)), span.TraceId, string(serialized))
 		if err != nil {
 			return err
 		}

@@ -28,8 +28,9 @@ const (
 	defaultDatasource        string        = "tcp://127.0.0.1:9000"
 	defaultMigrations        string        = "/migrations"
 	defaultOperationsTable   string        = "signoz_operations"
-	defaultIndexTable        string        = "signoz_index"
+	defaultIndexTable        string        = "signoz_index_v2"
 	defaultErrorTable        string        = "signoz_error_index"
+	defaultSpansTable        string        = "signoz_spans"
 	defaultArchiveSpansTable string        = "signoz_archive_spans"
 	defaultWriteBatchDelay   time.Duration = 5 * time.Second
 	defaultWriteBatchSize    int           = 10000
@@ -113,6 +114,7 @@ func NewOptions(migrations string, datasource string, primaryNamespace string, o
 			OperationsTable: defaultOperationsTable,
 			IndexTable:      defaultIndexTable,
 			ErrorTable:      defaultErrorTable,
+			SpansTable:      defaultSpansTable,
 			WriteBatchDelay: defaultWriteBatchDelay,
 			WriteBatchSize:  defaultWriteBatchSize,
 			Encoding:        defaultEncoding,
