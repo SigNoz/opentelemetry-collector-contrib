@@ -17,7 +17,7 @@ package clickhouseexporter
 import (
 	"context"
 	"flag"
-	"regexp"
+	"net/url"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -69,13 +69,22 @@ type Connector func(cfg *namespaceConfig) (clickhouse.Conn, error)
 
 func defaultConnector(cfg *namespaceConfig) (clickhouse.Conn, error) {
 	ctx := context.Background()
-	// Regex to match protocol eg: http:// or tcp://
-	m1 := regexp.MustCompile(`(\w+)://`)
-	clickhouseUrl := m1.ReplaceAllString(cfg.Datasource, "")
-
-	db, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{clickhouseUrl},
-	})
+	// // Regex to match protocol eg: http:// or tcp://
+	// m1 := regexp.MustCompile(`(\w+)://`)
+	// clickhouseUrl := m1.ReplaceAllString(cfg.Datasource, "")
+	dsnURL, err := url.Parse(cfg.Datasource)
+	options := &clickhouse.Options{
+		Addr: []string{dsnURL.Host},
+	}
+	if dsnURL.Query().Get("username") != "" {
+		auth := clickhouse.Auth{
+			// Database: "",
+			Username: dsnURL.Query().Get("username"),
+			Password: dsnURL.Query().Get("password"),
+		}
+		options.Auth = auth
+	}
+	db, err := clickhouse.Open(options)
 	if err != nil {
 		return nil, err
 	}
