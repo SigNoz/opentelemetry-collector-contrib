@@ -17,7 +17,7 @@ package clickhouseexporter
 import (
 	"flag"
 	"fmt"
-	"regexp"
+	"net/url"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -79,10 +79,11 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 		f.archive = archive
 	}
 
-	m1 := regexp.MustCompile(`(\w+)://`)
-	fmt.Println("Running migrations with path: ", f.Options.primary.Migrations)
-	clickhouseUrl := m1.ReplaceAllString(f.Options.primary.Datasource, "")
-	clickhouseUrl = fmt.Sprintf("clickhouse://%s?database=default&x-multi-statement=true", clickhouseUrl)
+	f.logger.Info("Running migrations from path: ", zap.Any("test", f.Options.primary.Migrations))
+	clickhouseUrl, err := buildClickhouseMigrateURL(f.Options.primary.Datasource)
+	if err != nil {
+		return fmt.Errorf("Failed to build Clickhouse migrate URL, error: %s", err)
+	}
 	m, err := migrate.New(
 		"file://"+f.Options.primary.Migrations,
 		clickhouseUrl)
@@ -92,6 +93,37 @@ func (f *Factory) Initialize(logger *zap.Logger) error {
 	err = m.Up()
 	f.logger.Info("Clickhouse Migrate finished", zap.Error(err))
 	return nil
+}
+
+func buildClickhouseMigrateURL(datasource string) (string, error) {
+	// return fmt.Sprintf("clickhouse://localhost:9000?database=default&x-multi-statement=true"), nil
+	var clickhouseUrl string
+	database := "default"
+	parsedURL, err := url.Parse(datasource)
+	if err != nil {
+		return "", err
+	}
+	host := parsedURL.Host
+	if host == "" {
+		return "", fmt.Errorf("Unable to parse host")
+
+	}
+	paramMap, err := url.ParseQuery(parsedURL.RawQuery)
+	if err != nil {
+		return "", err
+	}
+	username := paramMap["username"]
+	password := paramMap["password"]
+	databaseArr := paramMap["database"]
+	if len(databaseArr) > 0 {
+		database = databaseArr[0]
+	}
+	if len(username) > 0 && len(password) > 0 {
+		clickhouseUrl = fmt.Sprintf("clickhouse://%s:%s@%s/%s?x-multi-statement=true", username[0], password[0], host, database)
+	} else {
+		clickhouseUrl = fmt.Sprintf("clickhouse://%s?database=%s&x-multi-statement=true", host, database)
+	}
+	return clickhouseUrl, nil
 }
 
 func (f *Factory) connect(cfg *namespaceConfig) (clickhouse.Conn, error) {
