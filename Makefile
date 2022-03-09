@@ -27,6 +27,11 @@ INTEGRATION_TEST_MODULES := \
 	internal/common \
 	extension/observer/dockerobserver
 
+# build and push pipeline
+REPONAME ?= signoz
+OTELCONTRIBCOL_DOCKER_IMAGE ?= otelcontribcol
+DOCKER_TAG ?= latest
+
 .DEFAULT_GOAL := all
 
 all-modules:
@@ -301,3 +306,13 @@ multimod-verify: install-tools
 .PHONY: multimod-prerelease
 multimod-prerelease: install-tools
 	multimod prerelease -v ./versions.yaml -m contrib-base
+
+# Step to build and push docker image of OtelCollector (used in push pipeline)
+.PHONY: build-push-otelcontribcol
+build-push-otelcontribcol:
+	@echo "------------------"
+	@echo "--> Building and pushing otelcontribcol docker image"
+	@echo "------------------"
+	docker buildx build --platform linux/amd64,linux/arm64 --progress plane \
+		--no-cache --push -f cmd/otelcontribcol/Dockerfile \
+		--tag $(REPONAME)/$(OTELCONTRIBCOL_DOCKER_IMAGE):$(DOCKER_TAG) .
