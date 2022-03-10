@@ -29,14 +29,22 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   msgOperation LowCardinality(String) CODEC(ZSTD(1)),
   hasError Int32 CODEC(T64, ZSTD(1)),
   tagMap Map(LowCardinality(String), String) CODEC(ZSTD(2)),
-  INDEX idx_traceID traceID TYPE bloom_filter GRANULARITY 4,
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
   INDEX idx_name name TYPE bloom_filter GRANULARITY 4,
   INDEX idx_kind kind TYPE minmax GRANULARITY 4,
   INDEX idx_tagsKeys tagsKeys TYPE bloom_filter(0.01) GRANULARITY 64,
   INDEX idx_tagsValues tagsValues TYPE bloom_filter(0.01) GRANULARITY 64,
-  INDEX idx_duration durationNano TYPE minmax GRANULARITY 1
+  INDEX idx_duration durationNano TYPE minmax GRANULARITY 1,
+  INDEX idx_httpCode httpCode TYPE set(0) GRANULARITY 1,
+  INDEX idx_hasError hasError TYPE set(2) GRANULARITY 1,
+  INDEX idx_tagMapKeys mapKeys(tagMap) TYPE bloom_filter(0.01) GRANULARITY 64,
+  INDEX idx_tagMapValues mapValues(tagMap) TYPE bloom_filter(0.01) GRANULARITY 64,
+  INDEX idx_httpRoute httpRoute TYPE bloom_filter GRANULARITY 4,
+  INDEX idx_httpUrl httpUrl TYPE bloom_filter GRANULARITY 4,
+  INDEX idx_httpHost httpHost TYPE bloom_filter GRANULARITY 4,
+  INDEX idx_httpMethod httpMethod TYPE bloom_filter GRANULARITY 4
 ) ENGINE MergeTree()
 PARTITION BY toDate(timestamp)
-ORDER BY (timestamp, serviceName, kind, hasError)
+PRIMARY KEY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name)
+ORDER BY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name, timestamp)
 SETTINGS index_granularity = 8192

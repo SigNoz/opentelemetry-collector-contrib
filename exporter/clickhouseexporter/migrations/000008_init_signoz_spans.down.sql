@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS span_index
+DROP TABLE IF EXISTS signoz_spans
