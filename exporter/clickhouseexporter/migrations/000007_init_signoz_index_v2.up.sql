@@ -45,6 +45,5 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   INDEX idx_httpMethod httpMethod TYPE bloom_filter GRANULARITY 4
 ) ENGINE MergeTree()
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name)
-ORDER BY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name, timestamp)
+ORDER BY (-toUnixTimestamp(timestamp), hasError, kind, httpCode, serviceName, name)
 SETTINGS index_granularity = 8192
