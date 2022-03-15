@@ -5,12 +5,9 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   parentSpanID String CODEC(ZSTD(1)),
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
   name LowCardinality(String) CODEC(ZSTD(1)),
-  kind Int32 CODEC(T64, ZSTD(1)),
+  kind Int16 CODEC(T64, ZSTD(1)),
   durationNano UInt64 CODEC(T64, ZSTD(1)),
-  tags Array(String) CODEC(ZSTD(1)),
-  tagsKeys Array(String) CODEC(ZSTD(2)),
-  tagsValues Array(String) CODEC(ZSTD(2)),
-  statusCode Int64 CODEC(T64, ZSTD(1)),
+  statusCode Int16 CODEC(T64, ZSTD(1)),
   references String CODEC(ZSTD(2)),
   externalHttpMethod LowCardinality(String) CODEC(ZSTD(1)),
   externalHttpUrl LowCardinality(String) CODEC(ZSTD(1)),
@@ -19,7 +16,7 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   dbName LowCardinality(String) CODEC(ZSTD(1)),
   dbOperation LowCardinality(String) CODEC(ZSTD(1)),
   peerService LowCardinality(String) CODEC(ZSTD(1)),
-  events Array(String) CODEC(ZSTD(1)),
+  events Array(String) CODEC(ZSTD(2)),
   httpMethod LowCardinality(String) CODEC(ZSTD(1)),
   httpUrl LowCardinality(String) CODEC(ZSTD(1)), 
   httpCode LowCardinality(String) CODEC(ZSTD(1)), 
@@ -27,13 +24,11 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   httpHost LowCardinality(String) CODEC(ZSTD(1)), 
   msgSystem LowCardinality(String) CODEC(ZSTD(1)), 
   msgOperation LowCardinality(String) CODEC(ZSTD(1)),
-  hasError Int32 CODEC(T64, ZSTD(1)),
-  tagMap Map(LowCardinality(String), String) CODEC(ZSTD(2)),
+  hasError Int16 CODEC(T64, ZSTD(1)),
+  tagMap Map(LowCardinality(String), String) CODEC(ZSTD(1)),
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
   INDEX idx_name name TYPE bloom_filter GRANULARITY 4,
   INDEX idx_kind kind TYPE minmax GRANULARITY 4,
-  INDEX idx_tagsKeys tagsKeys TYPE bloom_filter(0.01) GRANULARITY 64,
-  INDEX idx_tagsValues tagsValues TYPE bloom_filter(0.01) GRANULARITY 64,
   INDEX idx_duration durationNano TYPE minmax GRANULARITY 1,
   INDEX idx_httpCode httpCode TYPE set(0) GRANULARITY 1,
   INDEX idx_hasError hasError TYPE set(2) GRANULARITY 1,
@@ -43,8 +38,9 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   INDEX idx_httpUrl httpUrl TYPE bloom_filter GRANULARITY 4,
   INDEX idx_httpHost httpHost TYPE bloom_filter GRANULARITY 4,
   INDEX idx_httpMethod httpMethod TYPE bloom_filter GRANULARITY 4,
-  INDEX idx_timestamp -toUnixTimestamp(timestamp) TYPE minmax GRANULARITY 1
+  INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
 ) ENGINE MergeTree()
 PARTITION BY toDate(timestamp)
-ORDER BY (-toUnixTimestamp(timestamp), hasError, kind, httpCode, serviceName, name)
-SETTINGS index_granularity = 8192
+PRIMARY KEY (durationNano, hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name)
+ORDER BY (durationNano, hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name, timestamp)
+SETTINGS index_granularity = 8192, 
