@@ -31,12 +31,9 @@ type Span struct {
 	DurationNano       uint64            `json:"durationNano,omitempty"`
 	StartTimeUnixNano  uint64            `json:"startTimeUnixNano,omitempty"`
 	ServiceName        string            `json:"serviceName,omitempty"`
-	Kind               int32             `json:"kind,omitempty"`
+	Kind               int8              `json:"kind,omitempty"`
 	References         []OtelSpanRef     `json:"references,omitempty"`
-	Tags               []string          `json:"tags,omitempty"`
-	TagsKeys           []string          `json:"tagsKeys,omitempty"`
-	TagsValues         []string          `json:"tagsValues,omitempty"`
-	StatusCode         int64             `json:"statusCode,omitempty"`
+	StatusCode         int16             `json:"statusCode,omitempty"`
 	ExternalHttpMethod string            `json:"externalHttpMethod,omitempty"`
 	HttpUrl            string            `json:"httpUrl,omitempty"`
 	HttpMethod         string            `json:"httpMethod,omitempty"`
@@ -55,7 +52,7 @@ type Span struct {
 	ErrorEvent         Event             `json:"errorEvent,omitempty"`
 	ErrorID            string            `json:"errorID,omitempty"`
 	TagMap             map[string]string `json:"tagMap,omitempty"`
-	HasError           int32             `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
+	HasError           bool              `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
 }
 
 type OtelSpanRef struct {

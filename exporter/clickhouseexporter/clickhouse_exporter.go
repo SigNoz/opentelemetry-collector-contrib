@@ -17,7 +17,6 @@ package clickhouseexporter
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -119,9 +118,9 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 
 	attributes.Range(func(k string, v pdata.AttributeValue) bool {
 		if k == "http.status_code" {
-			span.StatusCode = v.IntVal()
+			span.StatusCode = int16(v.IntVal())
 			if span.StatusCode >= 400 {
-				span.HasError = 1
+				span.HasError = true
 			}
 			span.HttpCode = strconv.FormatInt(v.IntVal(), 10)
 		} else if k == "http.url" && span.Kind == 3 {
@@ -196,26 +195,15 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 
 	attributes := otelSpan.Attributes()
 
-	var tags []string
-	var tagsKeys []string
-	var tagsValues []string
-	var tag string
 	tagMap := map[string]string{}
 
 	attributes.Range(func(k string, v pdata.AttributeValue) bool {
 		v.StringVal()
 		if v.Type().String() == "INT" {
-			tag = fmt.Sprintf("%s:%d", k, v.IntVal())
-			tagsValues = append(tagsValues, strconv.FormatInt(v.IntVal(), 10))
 			tagMap[k] = strconv.FormatInt(v.IntVal(), 10)
 		} else {
-			tag = fmt.Sprintf("%s:%s", k, v.StringVal())
-			tagsValues = append(tagsValues, v.StringVal())
 			tagMap[k] = v.StringVal()
 		}
-
-		tags = append(tags, tag)
-		tagsKeys = append(tagsKeys, k)
 		return true
 
 	})
@@ -230,18 +218,15 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 		StartTimeUnixNano: uint64(otelSpan.StartTimestamp()),
 		DurationNano:      durationNano,
 		ServiceName:       ServiceName,
-		Kind:              int32(otelSpan.Kind()),
+		Kind:              int8(otelSpan.Kind()),
 		References:        references,
-		Tags:              tags,
-		TagsKeys:          tagsKeys,
-		TagsValues:        tagsValues,
 		TagMap:            tagMap,
-		HasError:          0,
+		HasError:          false,
 	}
-	span.StatusCode = int64(otelSpan.Status().Code())
+	span.StatusCode = int16(otelSpan.Status().Code())
 
 	if span.StatusCode == 2 {
-		span.HasError = 1
+		span.HasError = true
 	}
 	populateOtherDimensions(attributes, span)
 	populateEvents(otelSpan.Events(), span)

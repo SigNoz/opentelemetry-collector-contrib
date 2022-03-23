@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   parentSpanID String CODEC(ZSTD(1)),
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
   name LowCardinality(String) CODEC(ZSTD(1)),
-  kind Int16 CODEC(T64, ZSTD(1)),
+  kind Int8 CODEC(T64, ZSTD(1)),
   durationNano UInt64 CODEC(T64, ZSTD(1)),
   statusCode Int16 CODEC(T64, ZSTD(1)),
   references String CODEC(ZSTD(2)),
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
   httpHost LowCardinality(String) CODEC(ZSTD(1)), 
   msgSystem LowCardinality(String) CODEC(ZSTD(1)), 
   msgOperation LowCardinality(String) CODEC(ZSTD(1)),
-  hasError Int16 CODEC(T64, ZSTD(1)),
+  hasError bool CODEC(T64, ZSTD(1)),
   tagMap Map(LowCardinality(String), String) CODEC(ZSTD(1)),
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
   INDEX idx_name name TYPE bloom_filter GRANULARITY 4,
@@ -43,4 +43,4 @@ CREATE TABLE IF NOT EXISTS signoz_index_v2 (
 PARTITION BY toDate(timestamp)
 PRIMARY KEY (durationNano, hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name)
 ORDER BY (durationNano, hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name, timestamp)
-SETTINGS index_granularity = 8192, 
+SETTINGS index_granularity = 8192
