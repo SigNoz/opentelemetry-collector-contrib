@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS signoz_index_v2
+DROP TABLE IF EXISTS signoz_traces.signoz_index_v2

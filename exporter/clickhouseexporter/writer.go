@@ -36,32 +36,34 @@ const (
 
 // SpanWriter for writing spans to ClickHouse
 type SpanWriter struct {
-	logger     *zap.Logger
-	db         clickhouse.Conn
-	indexTable string
-	errorTable string
-	spansTable string
-	encoding   Encoding
-	delay      time.Duration
-	size       int
-	spans      chan *Span
-	finish     chan bool
-	done       sync.WaitGroup
+	logger        *zap.Logger
+	db            clickhouse.Conn
+	traceDatabase string
+	indexTable    string
+	errorTable    string
+	spansTable    string
+	encoding      Encoding
+	delay         time.Duration
+	size          int
+	spans         chan *Span
+	finish        chan bool
+	done          sync.WaitGroup
 }
 
 // NewSpanWriter returns a SpanWriter for the database
-func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, spansTable string, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
+func NewSpanWriter(logger *zap.Logger, db clickhouse.Conn, traceDatabase string, spansTable string, indexTable string, errorTable string, encoding Encoding, delay time.Duration, size int) *SpanWriter {
 	writer := &SpanWriter{
-		logger:     logger,
-		db:         db,
-		indexTable: indexTable,
-		errorTable: errorTable,
-		spansTable: spansTable,
-		encoding:   encoding,
-		delay:      delay,
-		size:       size,
-		spans:      make(chan *Span, size),
-		finish:     make(chan bool),
+		logger:        logger,
+		db:            db,
+		traceDatabase: traceDatabase,
+		indexTable:    indexTable,
+		errorTable:    errorTable,
+		spansTable:    spansTable,
+		encoding:      encoding,
+		delay:         delay,
+		size:          size,
+		spans:         make(chan *Span, size),
+		finish:        make(chan bool),
 	}
 
 	go writer.backgroundWriter()
@@ -134,7 +136,7 @@ func (w *SpanWriter) writeBatch(batch []*Span) error {
 func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 
 	ctx := context.Background()
-	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.indexTable))
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s.%s", w.traceDatabase, w.indexTable))
 	if err != nil {
 		return err
 	}
@@ -180,7 +182,7 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 
 	ctx := context.Background()
-	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.errorTable))
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s.%s", w.traceDatabase, w.errorTable))
 	if err != nil {
 		return err
 	}
@@ -211,7 +213,7 @@ func (w *SpanWriter) writeErrorBatch(batchSpans []*Span) error {
 
 func (w *SpanWriter) writeModelBatch(batchSpans []*Span) error {
 	ctx := context.Background()
-	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s", w.spansTable))
+	statement, err := w.db.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s.%s", w.traceDatabase, w.spansTable))
 	if err != nil {
 		return err
 	}

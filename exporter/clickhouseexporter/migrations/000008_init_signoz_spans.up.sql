@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS signoz_spans (
+CREATE TABLE IF NOT EXISTS signoz_traces.signoz_spans (
     timestamp DateTime64(9) CODEC(DoubleDelta, LZ4),
     traceID String CODEC(ZSTD(1)),
     model String CODEC(ZSTD(9))
