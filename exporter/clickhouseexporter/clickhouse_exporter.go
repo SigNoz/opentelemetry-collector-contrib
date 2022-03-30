@@ -189,6 +189,11 @@ func populateEvents(events pdata.SpanEventSlice, span *Span) {
 	}
 }
 
+func populateTraceModel(span *Span) {
+	span.TraceModel.Events = span.Events
+	span.TraceModel.HasError = span.HasError
+}
+
 func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 
 	durationNano := uint64(otelSpan.EndTimestamp() - otelSpan.StartTimestamp())
@@ -219,17 +224,29 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 		DurationNano:      durationNano,
 		ServiceName:       ServiceName,
 		Kind:              int8(otelSpan.Kind()),
-		References:        references,
+		StatusCode:        int16(otelSpan.Status().Code()),
 		TagMap:            tagMap,
 		HasError:          false,
+		TraceModel: TraceModel{
+			TraceId:           otelSpan.TraceID().HexString(),
+			SpanId:            otelSpan.SpanID().HexString(),
+			Name:              otelSpan.Name(),
+			DurationNano:      durationNano,
+			StartTimeUnixNano: uint64(otelSpan.StartTimestamp()),
+			ServiceName:       ServiceName,
+			Kind:              int8(otelSpan.Kind()),
+			References:        references,
+			TagMap:            tagMap,
+			HasError:          false,
+		},
 	}
-	span.StatusCode = int16(otelSpan.Status().Code())
 
 	if span.StatusCode == 2 {
 		span.HasError = true
 	}
 	populateOtherDimensions(attributes, span)
 	populateEvents(otelSpan.Events(), span)
+	populateTraceModel(span)
 
 	return span
 }

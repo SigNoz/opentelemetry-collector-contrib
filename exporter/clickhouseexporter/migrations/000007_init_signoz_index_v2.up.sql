@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS signoz_traces.signoz_index_v2 (
   timestamp DateTime64(9) CODEC(DoubleDelta, LZ4),
-  traceID String CODEC(ZSTD(1)),
+  traceID FixedString(32) CODEC(ZSTD(1)),
   spanID String CODEC(ZSTD(1)),
   parentSpanID String CODEC(ZSTD(1)),
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS signoz_traces.signoz_index_v2 (
   kind Int8 CODEC(T64, ZSTD(1)),
   durationNano UInt64 CODEC(T64, ZSTD(1)),
   statusCode Int16 CODEC(T64, ZSTD(1)),
-  references String CODEC(ZSTD(2)),
   externalHttpMethod LowCardinality(String) CODEC(ZSTD(1)),
   externalHttpUrl LowCardinality(String) CODEC(ZSTD(1)),
   component LowCardinality(String) CODEC(ZSTD(1)),
@@ -26,7 +25,6 @@ CREATE TABLE IF NOT EXISTS signoz_traces.signoz_index_v2 (
   msgOperation LowCardinality(String) CODEC(ZSTD(1)),
   hasError bool CODEC(T64, ZSTD(1)),
   tagMap Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-  PROJECTION durationSort (SELECT * ORDER BY durationNano),
   PROJECTION timestampSort (SELECT * ORDER BY timestamp),
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
   INDEX idx_name name TYPE bloom_filter GRANULARITY 4,
@@ -43,8 +41,8 @@ CREATE TABLE IF NOT EXISTS signoz_traces.signoz_index_v2 (
   INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
 ) ENGINE MergeTree()
 PARTITION BY toDate(timestamp)
-PRIMARY KEY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name)
-ORDER BY (hasError, kind, httpCode, serviceName, toStartOfHour(timestamp), name, timestamp)
+PRIMARY KEY (serviceName, hasError, toStartOfHour(timestamp), name)
+ORDER BY (serviceName, hasError, toStartOfHour(timestamp), name, timestamp)
 SETTINGS index_granularity = 8192;
 
 SET allow_experimental_projection_optimization = 1;

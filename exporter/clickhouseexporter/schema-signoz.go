@@ -14,13 +14,26 @@
 
 package clickhouseexporter
 
-import "encoding/json"
-
 type Event struct {
 	Name         string            `json:"name,omitempty"`
 	TimeUnixNano uint64            `json:"timeUnixNano,omitempty"`
 	AttributeMap map[string]string `json:"attributeMap,omitempty"`
 	IsError      bool              `json:"isError,omitempty"`
+}
+
+type TraceModel struct {
+	TraceId           string            `json:"traceId,omitempty"`
+	SpanId            string            `json:"spanId,omitempty"`
+	Name              string            `json:"name,omitempty"`
+	DurationNano      uint64            `json:"durationNano,omitempty"`
+	StartTimeUnixNano uint64            `json:"startTimeUnixNano,omitempty"`
+	ServiceName       string            `json:"serviceName,omitempty"`
+	Kind              int8              `json:"kind,omitempty"`
+	References        []OtelSpanRef     `json:"references,omitempty"`
+	StatusCode        int16             `json:"statusCode,omitempty"`
+	TagMap            map[string]string `json:"tagMap,omitempty"`
+	Events            []string          `json:"event,omitempty"`
+	HasError          bool              `json:"hasError,omitempty"`
 }
 
 type Span struct {
@@ -32,7 +45,6 @@ type Span struct {
 	StartTimeUnixNano  uint64            `json:"startTimeUnixNano,omitempty"`
 	ServiceName        string            `json:"serviceName,omitempty"`
 	Kind               int8              `json:"kind,omitempty"`
-	References         []OtelSpanRef     `json:"references,omitempty"`
 	StatusCode         int16             `json:"statusCode,omitempty"`
 	ExternalHttpMethod string            `json:"externalHttpMethod,omitempty"`
 	HttpUrl            string            `json:"httpUrl,omitempty"`
@@ -52,21 +64,12 @@ type Span struct {
 	ErrorEvent         Event             `json:"errorEvent,omitempty"`
 	ErrorID            string            `json:"errorID,omitempty"`
 	TagMap             map[string]string `json:"tagMap,omitempty"`
-	HasError           bool              `json:"hasError,omitempty"` // Using int32 instead of bool because ClickHouse doesn't support bool
+	HasError           bool              `json:"hasError,omitempty"`
+	TraceModel         TraceModel        `json:"traceModel,omitempty"`
 }
 
 type OtelSpanRef struct {
 	TraceId string `json:"traceId,omitempty"`
 	SpanId  string `json:"spanId,omitempty"`
 	RefType string `json:"refType,omitempty"`
-}
-
-func (span *Span) GetReferences() *string {
-	value, err := json.Marshal(span.References)
-	if err != nil {
-		return nil
-	}
-
-	referencesString := string(value)
-	return &referencesString
 }

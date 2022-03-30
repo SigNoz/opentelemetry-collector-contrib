@@ -152,7 +152,6 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 			span.Kind,
 			span.DurationNano,
 			span.StatusCode,
-			span.GetReferences(),
 			span.ExternalHttpMethod,
 			span.ExternalHttpUrl,
 			span.Component,
@@ -221,7 +220,7 @@ func (w *SpanWriter) writeModelBatch(batchSpans []*Span) error {
 	for _, span := range batchSpans {
 		var serialized []byte
 
-		serialized, err = json.Marshal(span)
+		serialized, err = json.Marshal(span.TraceModel)
 
 		if err != nil {
 			return err

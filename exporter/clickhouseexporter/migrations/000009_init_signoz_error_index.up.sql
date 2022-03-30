@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS signoz_traces.signoz_error_index (
   timestamp DateTime64(9) CODEC(DoubleDelta, LZ4),
-  errorID String CODEC(ZSTD(1)),
-  traceID String CODEC(ZSTD(1)),
+  errorID FixedString(32) CODEC(ZSTD(1)),
+  traceID FixedString(32) CODEC(ZSTD(1)),
   spanID String CODEC(ZSTD(1)),
   parentSpanID String CODEC(ZSTD(1)),
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
