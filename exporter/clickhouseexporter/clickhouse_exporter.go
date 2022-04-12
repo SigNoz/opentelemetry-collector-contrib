@@ -206,7 +206,7 @@ func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
 		v.StringVal()
 		if v.Type().String() == "INT" {
 			tagMap[k] = strconv.FormatInt(v.IntVal(), 10)
-		} else {
+		} else if v.StringVal() != "" {
 			tagMap[k] = v.StringVal()
 		}
 		return true
