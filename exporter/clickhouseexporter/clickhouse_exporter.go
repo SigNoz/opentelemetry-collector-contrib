@@ -200,15 +200,26 @@ func populateTraceModel(span *Span) {
 	span.TraceModel.HasError = span.HasError
 }
 
-func newStructuredSpan(otelSpan pdata.Span, ServiceName string) *Span {
+func newStructuredSpan(otelSpan pdata.Span, ServiceName string, resource pdata.Resource) *Span {
 
 	durationNano := uint64(otelSpan.EndTimestamp() - otelSpan.StartTimestamp())
 
 	attributes := otelSpan.Attributes()
-
+	resourceAttributes := resource.Attributes()
 	tagMap := map[string]string{}
 
 	attributes.Range(func(k string, v pdata.AttributeValue) bool {
+		v.StringVal()
+		if v.Type().String() == "INT" {
+			tagMap[k] = strconv.FormatInt(v.IntVal(), 10)
+		} else if v.StringVal() != "" {
+			tagMap[k] = v.StringVal()
+		}
+		return true
+
+	})
+
+	resourceAttributes.Range(func(k string, v pdata.AttributeValue) bool {
 		v.StringVal()
 		if v.Type().String() == "INT" {
 			tagMap[k] = strconv.FormatInt(v.IntVal(), 10)
@@ -277,7 +288,7 @@ func (s *storage) pushTraceData(ctx context.Context, td pdata.Traces) error {
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
 				// traceID := hex.EncodeToString(span.TraceID())
-				structuredSpan := newStructuredSpan(span, serviceName)
+				structuredSpan := newStructuredSpan(span, serviceName, rs.Resource())
 				err := s.Writer.WriteSpan(structuredSpan)
 				if err != nil {
 					zap.S().Error("Error in writing spans to clickhouse: ", err)
