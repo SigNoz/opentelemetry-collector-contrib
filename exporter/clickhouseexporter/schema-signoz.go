@@ -66,6 +66,8 @@ type Span struct {
 	TagMap             map[string]string `json:"tagMap,omitempty"`
 	HasError           bool              `json:"hasError,omitempty"`
 	TraceModel         TraceModel        `json:"traceModel,omitempty"`
+	GRPCCode           string            `json:"gRPCCode,omitempty"`
+	GRPCMethod         string            `json:"gRPCMethod,omitempty"`
 }
 
 type OtelSpanRef struct {

@@ -169,6 +169,8 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 			span.MsgOperation,
 			span.HasError,
 			span.TagMap,
+			span.GRPCMethod,
+			span.GRPCCode,
 		)
 		if err != nil {
 			return err
