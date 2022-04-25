@@ -44,6 +44,7 @@ const (
 	metricKeySeparator         = string(byte(0))
 	traceIDKey                 = "trace_id"
 	defaultDimensionsCacheSize = 1000
+	RESOURCE_PREFIX            = "resource_"
 )
 
 var (
@@ -53,6 +54,7 @@ var (
 	defaultLatencyHistogramBucketsMs = []float64{
 		2, 4, 6, 8, 10, 50, 100, 200, 400, 800, 1000, 1400, 2000, 5000, 10_000, 15_000, maxDurationMs,
 	}
+	emptyLatencyHistogramBucketsMs = []float64{}
 )
 
 type metricKey string
@@ -123,17 +125,21 @@ func newProcessor(logger *zap.Logger, config config.Processor, nextConsumer cons
 		// {Name: statusCodeKey},
 		{Name: TagHTTPStatusCode},
 	}
+	callDimensions = append(callDimensions, pConfig.Dimensions...)
+
 	dbCallDimensions := []Dimension{
 		{Name: "db.system"},
 		{Name: "db.name"},
 		{Name: "db.operation"},
 	}
+	dbCallDimensions = append(dbCallDimensions, pConfig.Dimensions...)
 
 	externalCallDimensions := []Dimension{
 		{Name: "http.status_code"},
 		{Name: TagHTTPUrl},
 		{Name: "http.method"},
 	}
+	externalCallDimensions = append(externalCallDimensions, pConfig.Dimensions...)
 
 	if pConfig.DimensionsCacheSize <= 0 {
 		return nil, fmt.Errorf(
@@ -589,8 +595,13 @@ func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Sp
 	dims.UpsertString(statusCodeKey, span.Status().Code().String())
 
 	for _, d := range optionalDims {
-		if v, ok := getDimensionValue(d, span.Attributes(), resourceAttrs); ok {
+
+		v, ok, foundInResource := getDimensionValue(d, span.Attributes(), resourceAttrs)
+		if ok {
 			dims.Upsert(d.Name, v)
+		}
+		if foundInResource {
+			dims.Upsert(RESOURCE_PREFIX+d.Name, v)
 		}
 	}
 
@@ -604,7 +615,7 @@ func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Sp
 //
 // The ok flag indicates if a dimension value was fetched in order to differentiate
 // an empty string value from a state where no value was found.
-func getDimensionValue(d Dimension, spanAttr pdata.AttributeMap, resourceAttr pdata.AttributeMap) (v pdata.AttributeValue, ok bool) {
+func getDimensionValue(d Dimension, spanAttr pdata.AttributeMap, resourceAttr pdata.AttributeMap) (v pdata.AttributeValue, ok bool, foundInResource bool) {
 	// The more specific span attribute should take precedence.
 	if attr, exists := spanAttr.Get(d.Name); exists {
 		if d.Name == TagHTTPUrl {
@@ -616,18 +627,18 @@ func getDimensionValue(d Dimension, spanAttr pdata.AttributeMap, resourceAttr pd
 			}
 			attr = pdata.NewAttributeValueString(value)
 		}
-		return attr, true
+		return attr, true, false
 	}
 
 	if attr, exists := resourceAttr.Get(d.Name); exists {
-		return attr, true
+		return attr, false, true
 	}
 
 	// Set the default if configured, otherwise this metric will have no value set for the dimension.
 	if d.Default != nil {
-		return pdata.NewAttributeValueString(*d.Default), true
+		return pdata.NewAttributeValueString(*d.Default), true, false
 	}
-	return v, ok
+	return v, ok, foundInResource
 }
 
 func (p *processorImp) buildDimensionKVs(serviceName string, span pdata.Span, optionalDims []Dimension, resourceAttrs pdata.AttributeMap) pdata.AttributeMap {
@@ -637,8 +648,12 @@ func (p *processorImp) buildDimensionKVs(serviceName string, span pdata.Span, op
 	dims.UpsertString(spanKindKey, span.Kind().String())
 	dims.UpsertString(statusCodeKey, span.Status().Code().String())
 	for _, d := range optionalDims {
-		if v, ok := getDimensionValue(d, span.Attributes(), resourceAttrs); ok {
+		v, ok, foundInResource := getDimensionValue(d, span.Attributes(), resourceAttrs)
+		if ok {
 			dims.Upsert(d.Name, v)
+		}
+		if foundInResource {
+			dims.Upsert(RESOURCE_PREFIX+d.Name, v)
 		}
 	}
 	return dims
@@ -664,8 +679,12 @@ func buildCustomKey(serviceName string, span pdata.Span, optionalDims []Dimensio
 	concatDimensionValue(&metricKeyBuilder, span.Status().Code().String(), true)
 
 	for _, d := range optionalDims {
-		if v, ok := getDimensionValue(d, span.Attributes(), resourceAttrs); ok {
+		v, ok, foundInResource := getDimensionValue(d, span.Attributes(), resourceAttrs)
+		if ok {
 			concatDimensionValue(&metricKeyBuilder, v.AsString(), true)
+		}
+		if foundInResource {
+			concatDimensionValue(&metricKeyBuilder, RESOURCE_PREFIX+v.AsString(), true)
 		}
 	}
 
@@ -686,8 +705,13 @@ func buildKey(serviceName string, span pdata.Span, optionalDims []Dimension, res
 	concatDimensionValue(&metricKeyBuilder, span.Status().Code().String(), true)
 
 	for _, d := range optionalDims {
-		if v, ok := getDimensionValue(d, span.Attributes(), resourceAttrs); ok {
+		v, ok, foundInResource := getDimensionValue(d, span.Attributes(), resourceAttrs)
+
+		if ok {
 			concatDimensionValue(&metricKeyBuilder, v.AsString(), true)
+		}
+		if foundInResource {
+			concatDimensionValue(&metricKeyBuilder, RESOURCE_PREFIX+v.AsString(), true)
 		}
 	}
 
