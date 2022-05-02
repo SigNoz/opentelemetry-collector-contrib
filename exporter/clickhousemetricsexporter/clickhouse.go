@@ -37,26 +37,28 @@ import (
 )
 
 const (
-	signozMetricDBName = "signoz_metrics"
-	signozSampleName   = "samples"
-	signozTSName       = "time_series"
+	namespace = "promhouse"
+	subsystem = "clickhouse"
 )
 
 // clickHouse implements storage interface for the ClickHouse.
 type clickHouse struct {
-	db *sql.DB
-	l  *logrus.Entry
+	db                   *sql.DB
+	l                    *logrus.Entry
+	database             string
+	maxTimeSeriesInQuery int
 
 	timeSeriesRW sync.RWMutex
-	timeSeries   map[uint64]struct{}
+	timeSeries   map[uint64][]*prompb.Label
 
 	mWrittenTimeSeries prometheus.Counter
 }
 
 type ClickHouseParams struct {
-	DSN          string
-	DropDatabase bool
-	MaxOpenConns int
+	DSN                  string
+	DropDatabase         bool
+	MaxOpenConns         int
+	MaxTimeSeriesInQuery int
 }
 
 func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
@@ -67,34 +69,37 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+	database := dsnURL.Query().Get("database")
+	if database == "" {
+		return nil, fmt.Errorf("database should be set in ClickHouse DSN")
+	}
 
 	var queries []string
 	if params.DropDatabase {
-		queries = append(queries, fmt.Sprintf(`DROP DATABASE IF EXISTS %s`, signozMetricDBName))
+		queries = append(queries, fmt.Sprintf(`DROP DATABASE IF EXISTS %s`, database))
 	}
-	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, signozMetricDBName))
+	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
 	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
+		CREATE TABLE IF NOT EXISTS %s.time_series (
 			date Date Codec(DoubleDelta, LZ4),
 			fingerprint UInt64 Codec(DoubleDelta, LZ4),
-			labels LowCardinality(String) Codec(ZSTD(5))
+			labels String Codec(ZSTD(5))
 		)
 		ENGINE = ReplacingMergeTree
 			PARTITION BY date
-			ORDER BY fingerprint`, fmt.Sprintf("%s.%s", signozMetricDBName, signozTSName)))
+			ORDER BY fingerprint`, database))
 
 	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
-	CREATE TABLE IF NOT EXISTS %s (
-		metric_name LowCardinality(String) CODEC(ZSTD(1)), 
-		fingerprint UInt64 Codec(DoubleDelta, LZ4),
-		timestamp_ms Int64 Codec(DoubleDelta, LZ4),
-		value Float64 Codec(Gorilla, LZ4)
-	)
-	ENGINE = MergeTree
-		PARTITION BY toDate(timestamp_ms / 1000)
-		ORDER BY (metric_name, fingerprint, timestamp_ms)`, fmt.Sprintf("%s.%s", signozMetricDBName, signozSampleName)))
+		CREATE TABLE IF NOT EXISTS %s.samples (
+			fingerprint UInt64 Codec(DoubleDelta, LZ4),
+			timestamp_ms Int64 Codec(DoubleDelta, LZ4),
+			value Float64 Codec(Gorilla, LZ4)
+		)
+		ENGINE = MergeTree
+			PARTITION BY toDate(timestamp_ms / 1000)
+			ORDER BY (fingerprint, timestamp_ms)`, database))
 
 	options := &clickhouse.Options{
 		Addr: []string{dsnURL.Host},
@@ -116,28 +121,32 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	initDB.SetConnMaxLifetime(0)
 
 	if err != nil {
-		fmt.Println("Could not connect to clickhouse: ", err)
+		fmt.Errorf("Could not connect to clickhouse: ", err)
 		return nil, err
 	}
 
 	for _, q := range queries {
 		q = strings.TrimSpace(q)
-		l.Infof("Executing: %s", q)
+		l.Infof("Executing:\n%s", q)
 		if _, err = initDB.Exec(q); err != nil {
-			fmt.Println("Error in executing query: ", err.Error())
 			return nil, err
 		}
 
 	}
 
 	ch := &clickHouse{
-		db:         initDB,
-		l:          l,
-		timeSeries: make(map[uint64]struct{}, 1000000),
+		db:                   initDB,
+		l:                    l,
+		database:             database,
+		maxTimeSeriesInQuery: params.MaxTimeSeriesInQuery,
+
+		timeSeries: make(map[uint64][]*prompb.Label, 8192),
 
 		mWrittenTimeSeries: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "written_time_series",
-			Help: "Number of written time series.",
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "written_time_series",
+			Help:      "Number of written time series.",
 		}),
 	}
 
@@ -154,7 +163,7 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s`, fmt.Sprintf("%s.%s", signozMetricDBName, signozTSName))
+	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.time_series`, ch.database)
 	for {
 		ch.timeSeriesRW.RLock()
 		timeSeries := make(map[uint64][]*prompb.Label, len(ch.timeSeries))
@@ -183,8 +192,8 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 		if err == nil {
 			ch.timeSeriesRW.Lock()
 			n := len(timeSeries) - len(ch.timeSeries)
-			for f, _ := range timeSeries {
-				ch.timeSeries[f] = struct{}{}
+			for f, m := range timeSeries {
+				ch.timeSeries[f] = m
 			}
 			ch.timeSeriesRW.Unlock()
 			ch.l.Debugf("Loaded %d existing time series, %d were unknown to this instance.", len(timeSeries), n)
@@ -230,16 +239,6 @@ func inTransaction(ctx context.Context, txer beginTxer, f func(*sql.Tx) error) (
 	return
 }
 
-func getMetricNameFromLabels(labels *[]prompb.Label) (*string, error) {
-
-	for _, label := range *labels {
-		if label.Name == "__name__" {
-			return &label.Value, nil
-		}
-	}
-	return nil, fmt.Errorf("__name__ not found in labels of time series")
-}
-
 func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	// calculate fingerprints, map them to time series
 	fingerprints := make([]uint64, len(data.Timeseries))
@@ -266,11 +265,11 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// find new time series
 	var newTimeSeries []uint64
 	ch.timeSeriesRW.Lock()
-	for f, _ := range timeSeries {
+	for f, m := range timeSeries {
 		_, ok := ch.timeSeries[f]
 		if !ok {
 			newTimeSeries = append(newTimeSeries, f)
-			ch.timeSeries[f] = struct{}{}
+			ch.timeSeries[f] = m
 		}
 	}
 	ch.timeSeriesRW.Unlock()
@@ -278,7 +277,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// write new time series
 	if len(newTimeSeries) > 0 {
 		err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-			query := fmt.Sprintf(`INSERT INTO %s (date, fingerprint, labels) VALUES (?, ?, ?)`, fmt.Sprintf("%s.%s", signozMetricDBName, signozTSName))
+			query := fmt.Sprintf(`INSERT INTO %s.time_series (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
 			var err error
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
@@ -307,24 +306,20 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 
 	// write samples
 	err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-		query := fmt.Sprintf(`INSERT INTO %s (metric_name, fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, fmt.Sprintf("%s.%s", signozMetricDBName, signozSampleName))
+		query := fmt.Sprintf(`INSERT INTO %s.samples (fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
 		var err error
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 			return errors.WithStack(err)
 		}
 
-		args := make([]interface{}, 4)
+		args := make([]interface{}, 3)
 		for i, ts := range data.Timeseries {
-			args[0], err = getMetricNameFromLabels(&ts.Labels)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			args[1] = fingerprints[i]
+			args[0] = fingerprints[i]
 
 			for _, s := range ts.Samples {
-				args[2] = s.Timestamp
-				args[3] = s.Value
+				args[1] = s.Timestamp
+				args[2] = s.Value
 				// ch.l.Debugf("%s %v", query, args)
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
