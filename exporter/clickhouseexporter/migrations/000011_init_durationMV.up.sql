@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS signoz_traces.durationSort (
   httpCode LowCardinality(String) CODEC(ZSTD(1)), 
   httpRoute LowCardinality(String) CODEC(ZSTD(1)), 
   httpHost LowCardinality(String) CODEC(ZSTD(1)), 
+  gRPCCode LowCardinality(String) CODEC(ZSTD(1)),
+  gRPCMethod LowCardinality(String) CODEC(ZSTD(1)),
   hasError bool CODEC(T64, ZSTD(1)),
   tagMap Map(LowCardinality(String), String) CODEC(ZSTD(1)),
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
@@ -52,6 +54,8 @@ AS SELECT
   httpCode,
   httpRoute,
   httpHost,
+  gRPCMethod,
+  gRPCCode,
   hasError,
   tagMap
 FROM signoz_traces.signoz_index_v2
