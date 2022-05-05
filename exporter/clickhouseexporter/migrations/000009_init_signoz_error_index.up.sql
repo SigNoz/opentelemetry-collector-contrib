@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS signoz_traces.signoz_error_index (
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
   exceptionType LowCardinality(String) CODEC(ZSTD(1)),
   exceptionMessage LowCardinality(String) CODEC(ZSTD(1)),
-  excepionStacktrace LowCardinality(String) CODEC(ZSTD(1)),
+  exceptionStacktrace LowCardinality(String) CODEC(ZSTD(1)),
   exceptionEscaped LowCardinality(String) CODEC(ZSTD(1)),
   INDEX idx_traceID traceID TYPE bloom_filter GRANULARITY 4,
   INDEX idx_service serviceName TYPE bloom_filter GRANULARITY 4,
