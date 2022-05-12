@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS signoz_error_index (
-  timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
-  errorID String CODEC(ZSTD(1)),
-  traceID String CODEC(ZSTD(1)),
+CREATE TABLE IF NOT EXISTS signoz_traces.signoz_error_index (
+  timestamp DateTime64(9) CODEC(DoubleDelta, LZ4),
+  errorID FixedString(32) CODEC(ZSTD(1)),
+  traceID FixedString(32) CODEC(ZSTD(1)),
   spanID String CODEC(ZSTD(1)),
   parentSpanID String CODEC(ZSTD(1)),
   serviceName LowCardinality(String) CODEC(ZSTD(1)),
@@ -15,4 +15,4 @@ CREATE TABLE IF NOT EXISTS signoz_error_index (
   INDEX idx_type exceptionType TYPE bloom_filter GRANULARITY 4
 ) ENGINE MergeTree()
 PARTITION BY toDate(timestamp)
-ORDER BY (exceptionType, exceptionMessage, serviceName, -toUnixTimestamp(timestamp))
+ORDER BY (serviceName, exceptionType, exceptionMessage, timestamp)

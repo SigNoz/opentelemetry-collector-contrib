@@ -17,6 +17,7 @@ package clickhouseexporter
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -25,11 +26,13 @@ import (
 )
 
 const (
-	defaultDatasource        string        = "tcp://127.0.0.1:9000"
+	defaultDatasource        string        = "tcp://127.0.0.1:9000/?database=signoz_traces"
+	defaultTraceDatabase     string        = "signoz_traces"
 	defaultMigrations        string        = "/migrations"
 	defaultOperationsTable   string        = "signoz_operations"
-	defaultIndexTable        string        = "signoz_index"
+	defaultIndexTable        string        = "signoz_index_v2"
 	defaultErrorTable        string        = "signoz_error_index"
+	defaultSpansTable        string        = "signoz_spans"
 	defaultArchiveSpansTable string        = "signoz_archive_spans"
 	defaultWriteBatchDelay   time.Duration = 5 * time.Second
 	defaultWriteBatchSize    int           = 10000
@@ -39,6 +42,7 @@ const (
 const (
 	suffixEnabled         = ".enabled"
 	suffixDatasource      = ".datasource"
+	suffixTraceDatabase   = ".trace-database"
 	suffixMigrations      = ".migrations"
 	suffixOperationsTable = ".operations-table"
 	suffixIndexTable      = ".index-table"
@@ -54,6 +58,7 @@ type namespaceConfig struct {
 	Enabled         bool
 	Datasource      string
 	Migrations      string
+	TraceDatabase   string
 	OperationsTable string
 	IndexTable      string
 	SpansTable      string
@@ -69,16 +74,12 @@ type Connector func(cfg *namespaceConfig) (clickhouse.Conn, error)
 
 func defaultConnector(cfg *namespaceConfig) (clickhouse.Conn, error) {
 	ctx := context.Background()
-	// // Regex to match protocol eg: http:// or tcp://
-	// m1 := regexp.MustCompile(`(\w+)://`)
-	// clickhouseUrl := m1.ReplaceAllString(cfg.Datasource, "")
 	dsnURL, err := url.Parse(cfg.Datasource)
 	options := &clickhouse.Options{
 		Addr: []string{dsnURL.Host},
 	}
 	if dsnURL.Query().Get("username") != "" {
 		auth := clickhouse.Auth{
-			// Database: "",
 			Username: dsnURL.Query().Get("username"),
 			Password: dsnURL.Query().Get("password"),
 		}
@@ -93,6 +94,10 @@ func defaultConnector(cfg *namespaceConfig) (clickhouse.Conn, error) {
 		return nil, err
 	}
 
+	query := fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, dsnURL.Query().Get("database"))
+	if err := db.Exec(ctx, query); err != nil {
+		return nil, err
+	}
 	return db, nil
 }
 
@@ -119,9 +124,11 @@ func NewOptions(migrations string, datasource string, primaryNamespace string, o
 			Enabled:         true,
 			Datasource:      datasource,
 			Migrations:      migrations,
+			TraceDatabase:   defaultTraceDatabase,
 			OperationsTable: defaultOperationsTable,
 			IndexTable:      defaultIndexTable,
 			ErrorTable:      defaultErrorTable,
+			SpansTable:      defaultSpansTable,
 			WriteBatchDelay: defaultWriteBatchDelay,
 			WriteBatchSize:  defaultWriteBatchSize,
 			Encoding:        defaultEncoding,
@@ -224,6 +231,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.Datasource = v.GetString(cfg.namespace + suffixDatasource)
+	cfg.TraceDatabase = v.GetString(cfg.namespace + suffixTraceDatabase)
 	cfg.IndexTable = v.GetString(cfg.namespace + suffixIndexTable)
 	cfg.SpansTable = v.GetString(cfg.namespace + suffixSpansTable)
 	cfg.OperationsTable = v.GetString(cfg.namespace + suffixOperationsTable)
