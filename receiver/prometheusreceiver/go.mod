@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/census-instrumentation/opencensus-proto v0.3.0
-	github.com/go-kit/log v0.2.0
+	github.com/go-kit/log v0.2.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.43.0
