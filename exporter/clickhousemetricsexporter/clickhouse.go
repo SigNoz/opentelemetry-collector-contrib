@@ -116,9 +116,11 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	// fmt.Println(options)
 	initDB := clickhouse.OpenDB(options)
 
-	initDB.SetConnMaxIdleTime(2)
 	initDB.SetMaxOpenConns(params.MaxOpenConns)
-	initDB.SetConnMaxLifetime(0)
+	initDB.SetConnMaxLifetime(5 * time.Minute)
+	l.Info("initDB options", options)
+	l.Info("initDb", initDB)
+	l.Info(initDB.Stats())
 
 	if err != nil {
 		fmt.Errorf("Could not connect to clickhouse: ", err)
@@ -258,8 +260,9 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 		fingerprints[i] = f
 		timeSeries[f] = labels
 	}
+	ch.l.Infof("got %d fingerprints, but only %d of them were unique time series", len(fingerprints), len(timeSeries))
 	if len(fingerprints) != len(timeSeries) {
-		ch.l.Debugf("got %d fingerprints, but only %d of them were unique time series", len(fingerprints), len(timeSeries))
+		ch.l.Infof("got %d fingerprints, but only %d of them were unique time series", len(fingerprints), len(timeSeries))
 	}
 
 	// find new time series
