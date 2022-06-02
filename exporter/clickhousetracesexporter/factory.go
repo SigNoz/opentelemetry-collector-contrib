@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clickhouseexporter
+package clickhousetracesexporter
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 
 const (
 	// The value of "type" key in configuration.
-	typeStr          = "clickhouse"
+	typeStr          = "clickhousetraces"
 	primaryNamespace = "clickhouse"
 	archiveNamespace = "clickhouse-archive"
 )
