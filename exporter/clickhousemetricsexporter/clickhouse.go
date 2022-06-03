@@ -49,7 +49,7 @@ type clickHouse struct {
 	maxTimeSeriesInQuery int
 
 	timeSeriesRW sync.RWMutex
-	timeSeries   map[uint64][]*prompb.Label
+	timeSeries   map[uint64]struct{}
 
 	mWrittenTimeSeries prometheus.Counter
 }
@@ -90,7 +90,6 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 			PARTITION BY date
 			ORDER BY fingerprint`, database))
 
-	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.samples (
 			fingerprint UInt64 Codec(DoubleDelta, LZ4),
@@ -100,6 +99,14 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		ENGINE = MergeTree
 			PARTITION BY toDate(timestamp_ms / 1000)
 			ORDER BY (fingerprint, timestamp_ms)`, database))
+
+	queries = append(queries, fmt.Sprintf(`
+		ALTER TABLE %s.time_series ADD COLUMN IF NOT EXISTS metric_name LowCardinality(String) Codec(ZSTD(1));`,
+		database))
+
+	queries = append(queries, fmt.Sprintf(`
+		ALTER TABLE %s.time_series UPDATE metric_name=JSONExtractString(labels, '__name__') WHERE true;`,
+		database))
 
 	options := &clickhouse.Options{
 		Addr: []string{dsnURL.Host},
@@ -118,7 +125,7 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	initDB.SetConnMaxLifetime(1 * time.Hour)
 
 	if err != nil {
-		fmt.Errorf("Could not connect to clickhouse: ", err)
+		l.Errorf("Could not connect to clickhouse: %v", err)
 		return nil, err
 	}
 
@@ -128,7 +135,6 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		if _, err = initDB.Exec(q); err != nil {
 			return nil, err
 		}
-
 	}
 
 	ch := &clickHouse{
@@ -137,7 +143,7 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		database:             database,
 		maxTimeSeriesInQuery: params.MaxTimeSeriesInQuery,
 
-		timeSeries: make(map[uint64][]*prompb.Label, 8192),
+		timeSeries: make(map[uint64]struct{}, 8192),
 
 		mWrittenTimeSeries: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -160,10 +166,10 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	q := fmt.Sprintf(`SELECT DISTINCT fingerprint, labels FROM %s.time_series`, ch.database)
+	q := fmt.Sprintf(`SELECT DISTINCT fingerprint FROM %s.time_series`, ch.database)
 	for {
 		ch.timeSeriesRW.RLock()
-		timeSeries := make(map[uint64][]*prompb.Label, len(ch.timeSeries))
+		timeSeries := make(map[uint64]struct{}, len(ch.timeSeries))
 		ch.timeSeriesRW.RUnlock()
 
 		err := func() error {
@@ -175,14 +181,11 @@ func (ch *clickHouse) runTimeSeriesReloader(ctx context.Context) {
 			defer rows.Close()
 
 			var f uint64
-			var b []byte
 			for rows.Next() {
-				if err = rows.Scan(&f, &b); err != nil {
+				if err = rows.Scan(&f); err != nil {
 					return err
 				}
-				if timeSeries[f], err = unmarshalLabels(b); err != nil {
-					return err
-				}
+				timeSeries[f] = struct{}{}
 			}
 			return rows.Err()
 		}()
@@ -260,13 +263,12 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	}
 
 	// find new time series
-	var newTimeSeries []uint64
+	newTimeSeries := make(map[uint64][]*prompb.Label)
 	ch.timeSeriesRW.Lock()
 	for f, m := range timeSeries {
 		_, ok := ch.timeSeries[f]
 		if !ok {
-			newTimeSeries = append(newTimeSeries, f)
-			ch.timeSeries[f] = m
+			newTimeSeries[f] = m
 		}
 	}
 	ch.timeSeriesRW.Unlock()
@@ -283,11 +285,9 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 
 			args := make([]interface{}, 3)
 			args[0] = model.Now().Time()
-			for _, f := range newTimeSeries {
+			for f, labels := range newTimeSeries {
 				args[1] = f
-				args[2] = string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
-
-				// ch.l.Infof("%s %v", query, args)
+				args[2] = string(marshalLabels(labels, make([]byte, 0, 128)))
 
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
@@ -317,7 +317,6 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			for _, s := range ts.Samples {
 				args[1] = s.Timestamp
 				args[2] = s.Value
-				// ch.l.Debugf("%s %v", query, args)
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
