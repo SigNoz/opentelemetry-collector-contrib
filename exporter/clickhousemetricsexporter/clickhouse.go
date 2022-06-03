@@ -113,12 +113,9 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 
 		options.Auth = auth
 	}
-	// fmt.Println(options)
 	initDB := clickhouse.OpenDB(options)
-
-	initDB.SetConnMaxIdleTime(2)
 	initDB.SetMaxOpenConns(params.MaxOpenConns)
-	initDB.SetConnMaxLifetime(0)
+	initDB.SetConnMaxLifetime(1 * time.Hour)
 
 	if err != nil {
 		fmt.Errorf("Could not connect to clickhouse: ", err)
