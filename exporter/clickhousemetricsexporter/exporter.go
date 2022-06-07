@@ -141,6 +141,24 @@ func (prwe *PrwExporter) PushMetrics(ctx context.Context, md pdata.Metrics) erro
 					if ok := validateMetrics(metric); !ok {
 						dropped++
 						errs = multierr.Append(errs, consumererror.NewPermanent(errors.New("invalid temporality and type combination")))
+						serviceName, _ := resource.Attributes().Get("service.name")
+						metricType := metric.DataType()
+						var numDataPoints int
+						var temporality pdata.MetricAggregationTemporality
+						switch metricType {
+						case pdata.MetricDataTypeGauge:
+							numDataPoints = metric.Gauge().DataPoints().Len()
+						case pdata.MetricDataTypeSum:
+							numDataPoints = metric.Sum().DataPoints().Len()
+							temporality = metric.Sum().AggregationTemporality()
+						case pdata.MetricDataTypeHistogram:
+							numDataPoints = metric.Histogram().DataPoints().Len()
+							temporality = metric.Histogram().AggregationTemporality()
+						case pdata.MetricDataTypeSummary:
+							numDataPoints = metric.Summary().DataPoints().Len()
+						default:
+						}
+						zap.S().Errorf("dropped %d number of metric data points of type %d with temporality %d for a service %s", numDataPoints, metricType, temporality, serviceName.AsString())
 						continue
 					}
 
