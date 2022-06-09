@@ -16,7 +16,6 @@ package sumologicexporter // import "github.com/open-telemetry/opentelemetry-col
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -38,31 +37,8 @@ type sumologicexporter struct {
 }
 
 func initExporter(cfg *Config, settings component.TelemetrySettings) (*sumologicexporter, error) {
-	switch cfg.LogFormat {
-	case JSONFormat:
-	case TextFormat:
-	default:
-		return nil, fmt.Errorf("unexpected log format: %s", cfg.LogFormat)
-	}
-
-	switch cfg.MetricFormat {
-	case GraphiteFormat:
-	case Carbon2Format:
-	case PrometheusFormat:
-	default:
-		return nil, fmt.Errorf("unexpected metric format: %s", cfg.MetricFormat)
-	}
-
-	switch cfg.CompressEncoding {
-	case GZIPCompression:
-	case DeflateCompression:
-	case NoCompression:
-	default:
-		return nil, fmt.Errorf("unexpected compression encoding: %s", cfg.CompressEncoding)
-	}
-
-	if len(cfg.HTTPClientSettings.Endpoint) == 0 {
-		return nil, errors.New("endpoint is not set")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	sfs, err := newSourceFormats(cfg)
@@ -190,7 +166,7 @@ func (se *sumologicexporter) pushLogsData(ctx context.Context, ld pdata.Logs) er
 			ill := ills.At(j)
 
 			// iterate over Logs
-			logs := ill.Logs()
+			logs := ill.LogRecords()
 			for k := 0; k < logs.Len(); k++ {
 				log := logs.At(k)
 
@@ -240,7 +216,7 @@ func (se *sumologicexporter) pushLogsData(ctx context.Context, ld pdata.Logs) er
 		droppedLogs := pdata.NewLogs()
 		rls = droppedLogs.ResourceLogs()
 		ills := rls.AppendEmpty().InstrumentationLibraryLogs()
-		logs := ills.AppendEmpty().Logs()
+		logs := ills.AppendEmpty().LogRecords()
 
 		for _, log := range droppedRecords {
 			tgt := logs.AppendEmpty()
