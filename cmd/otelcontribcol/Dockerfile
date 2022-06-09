@@ -24,7 +24,7 @@ USER ${USER_UID}
 
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/otelcontribcol /
-COPY --from=build /src/exporter/clickhouseexporter/migrations /migrations
+COPY --from=build /src/exporter/clickhousetracesexporter/migrations /migrations
 
 EXPOSE 4317 55680 55679
 ENTRYPOINT ["/otelcontribcol"]
