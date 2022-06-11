@@ -141,7 +141,10 @@ func (prwe *PrwExporter) PushMetrics(ctx context.Context, md pdata.Metrics) erro
 					if ok := validateMetrics(metric); !ok {
 						dropped++
 						errs = multierr.Append(errs, consumererror.NewPermanent(errors.New("invalid temporality and type combination")))
-						serviceName, _ := resource.Attributes().Get("service.name")
+						serviceName, found := resource.Attributes().Get("service.name")
+						if !found {
+							serviceName = pdata.NewAttributeValueString("<missing-svc>")
+						}
 						metricType := metric.DataType()
 						var numDataPoints int
 						var temporality pdata.MetricAggregationTemporality
