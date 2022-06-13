@@ -84,11 +84,14 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		CREATE TABLE IF NOT EXISTS %s.time_series (
 			date Date Codec(DoubleDelta, LZ4),
 			fingerprint UInt64 Codec(DoubleDelta, LZ4),
-			labels String Codec(ZSTD(5))
+
+			metric_name LowCardinality(String) CODEC(ZSTD(1)), 
+			labels LowCardinality(String) Codec(ZSTD(5))
 		)
 		ENGINE = ReplacingMergeTree
 			PARTITION BY date
-			ORDER BY fingerprint`, database))
+			ORDER BY (metric_name, fingerprint)`, fmt.Sprintf("%s.%s", signozMetricDBName, signozTSName)))
+
 
 	// change sampleRowSize is you change this table
 	queries = append(queries, fmt.Sprintf(`
@@ -236,6 +239,28 @@ func inTransaction(ctx context.Context, txer beginTxer, f func(*sql.Tx) error) (
 	return
 }
 
+
+func getMetricNameFromLabels(labels *[]prompb.Label) (*string, error) {
+
+	for _, label := range *labels {
+		if label.Name == "__name__" {
+			return &label.Value, nil
+		}
+	}
+	return nil, fmt.Errorf("__name__ not found in labels of time series")
+}
+
+func getMetricNameFromLabelPointers(labels []*prompb.Label) (*string, error) {
+
+	for _, label := range labels {
+		if label.Name == "__name__" {
+			return &label.Value, nil
+		}
+	}
+	return nil, fmt.Errorf("__name__ not found in labels of time series")
+}
+
+
 func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) error {
 	// calculate fingerprints, map them to time series
 	fingerprints := make([]uint64, len(data.Timeseries))
@@ -274,7 +299,9 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// write new time series
 	if len(newTimeSeries) > 0 {
 		err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-			query := fmt.Sprintf(`INSERT INTO %s.time_series (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+
+			query := fmt.Sprintf(`INSERT INTO %s (date, fingerprint, metric_name, labels) VALUES (?, ?, ?, ?)`, fmt.Sprintf("%s.%s", signozMetricDBName, signozTSName))
+
 			var stmt *sql.Stmt
 			var err error
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
@@ -285,7 +312,11 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			args[0] = model.Now().Time()
 			for _, f := range newTimeSeries {
 				args[1] = f
-				args[2] = string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
+				args[2], err = getMetricNameFromLabelPointers(timeSeries[f])
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				args[3] = string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
 
 				// ch.l.Infof("%s %v", query, args)
 
