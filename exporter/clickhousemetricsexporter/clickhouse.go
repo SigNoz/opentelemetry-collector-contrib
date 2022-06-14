@@ -253,7 +253,7 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 				Value: label.Value,
 			}
 			if label.Name == "__name__" {
-				metricName = label.Name
+				metricName = label.Value
 			}
 		}
 		timeseries.SortLabels(labels)
