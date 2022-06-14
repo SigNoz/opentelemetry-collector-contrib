@@ -81,25 +81,29 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	queries = append(queries, fmt.Sprintf(`CREATE DATABASE IF NOT EXISTS %s`, database))
 
 	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.time_series (
-			date Date Codec(DoubleDelta, LZ4),
-			fingerprint UInt64 Codec(DoubleDelta, LZ4),
-			labels String Codec(ZSTD(5))
-		)
-		ENGINE = ReplacingMergeTree
-			PARTITION BY date
-			ORDER BY fingerprint`, database))
-
-	// change sampleRowSize is you change this table
-	queries = append(queries, fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s.samples (
-			fingerprint UInt64 Codec(DoubleDelta, LZ4),
+		CREATE TABLE IF NOT EXISTS %s.samples_v2 (
+			metric_name LowCardinality(String),
 			timestamp_ms Int64 Codec(DoubleDelta, LZ4),
+			fingerprint UInt64 Codec(DoubleDelta, LZ4),
 			value Float64 Codec(Gorilla, LZ4)
 		)
 		ENGINE = MergeTree
 			PARTITION BY toDate(timestamp_ms / 1000)
-			ORDER BY (fingerprint, timestamp_ms)`, database))
+			ORDER BY (metric_name, timestamp_ms, fingerprint)`, database))
+
+	queries = append(queries, `SET allow_experimental_object_type = 1`)
+
+	queries = append(queries, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s.time_series_v2 (
+			metric_name LowCardinality(String),
+			fingerprint UInt64 Codec(DoubleDelta, LZ4),
+			date Date Codec(DoubleDelta, LZ4),
+			labels String Codec(ZSTD(5)),
+			labels_object JSON CODEC(ZSTD(5))
+		)
+		ENGINE = ReplacingMergeTree
+			PARTITION BY date
+			ORDER BY (metric_name, fingerprint)`, database))
 
 	options := &clickhouse.Options{
 		Addr: []string{dsnURL.Host},
@@ -118,17 +122,15 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	initDB.SetConnMaxLifetime(1 * time.Hour)
 
 	if err != nil {
-		fmt.Errorf("Could not connect to clickhouse: ", err)
-		return nil, err
+		return nil, fmt.Errorf("could not connect to clickhouse: %s", err)
 	}
 
 	for _, q := range queries {
 		q = strings.TrimSpace(q)
-		l.Infof("Executing:\n%s", q)
+		l.Infof("Executing:\n%s\n", q)
 		if _, err = initDB.Exec(q); err != nil {
 			return nil, err
 		}
-
 	}
 
 	ch := &clickHouse{
@@ -240,20 +242,25 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// calculate fingerprints, map them to time series
 	fingerprints := make([]uint64, len(data.Timeseries))
 	timeSeries := make(map[uint64][]*prompb.Label, len(data.Timeseries))
+	fingerprintToName := make(map[uint64]string)
 
 	for i, ts := range data.Timeseries {
+		var metricName string
 		labels := make([]*prompb.Label, len(ts.Labels))
 		for j, label := range ts.Labels {
 			labels[j] = &prompb.Label{
 				Name:  label.Name,
 				Value: label.Value,
 			}
-
+			if label.Name == "__name__" {
+				metricName = label.Name
+			}
 		}
 		timeseries.SortLabels(labels)
 		f := timeseries.Fingerprint(labels)
 		fingerprints[i] = f
 		timeSeries[f] = labels
+		fingerprintToName[f] = metricName
 	}
 	if len(fingerprints) != len(timeSeries) {
 		ch.l.Debugf("got %d fingerprints, but only %d of them were unique time series", len(fingerprints), len(timeSeries))
@@ -274,20 +281,24 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 	// write new time series
 	if len(newTimeSeries) > 0 {
 		err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-			query := fmt.Sprintf(`INSERT INTO %s.time_series (date, fingerprint, labels) VALUES (?, ?, ?)`, ch.database)
+			query := fmt.Sprintf(`INSERT INTO %s.time_series_v2 (metric_name, date, fingerprint, labels, labels_object) VALUES (?, ?, ?)`, ch.database)
 			var stmt *sql.Stmt
 			var err error
 			if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 				return errors.WithStack(err)
 			}
 
-			args := make([]interface{}, 3)
-			args[0] = model.Now().Time()
+			args := make([]interface{}, 5)
+			args[1] = model.Now().Time()
 			for _, f := range newTimeSeries {
-				args[1] = f
-				args[2] = string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
+				encodedLabels := string(marshalLabels(timeSeries[f], make([]byte, 0, 128)))
 
-				// ch.l.Infof("%s %v", query, args)
+				args[0] = fingerprintToName[f]
+
+				args[2] = f
+				args[3] = encodedLabels
+				// ClickHouse automatically infers the JSON encoded string
+				args[4] = encodedLabels
 
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
@@ -303,21 +314,22 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 
 	// write samples
 	err := inTransaction(ctx, ch.db, func(tx *sql.Tx) error {
-		query := fmt.Sprintf(`INSERT INTO %s.samples (fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
+		query := fmt.Sprintf(`INSERT INTO %s.samples_v2 (metric_name, fingerprint, timestamp_ms, value) VALUES (?, ?, ?)`, ch.database)
 		var stmt *sql.Stmt
 		var err error
 		if stmt, err = tx.PrepareContext(ctx, query); err != nil {
 			return errors.WithStack(err)
 		}
 
-		args := make([]interface{}, 3)
+		args := make([]interface{}, 4)
 		for i, ts := range data.Timeseries {
-			args[0] = fingerprints[i]
+			fingerprint := fingerprints[i]
+			args[0] = fingerprintToName[fingerprint]
+			args[1] = fingerprint
 
 			for _, s := range ts.Samples {
-				args[1] = s.Timestamp
-				args[2] = s.Value
-				// ch.l.Debugf("%s %v", query, args)
+				args[2] = s.Timestamp
+				args[3] = s.Value
 				if _, err := stmt.ExecContext(ctx, args...); err != nil {
 					return errors.WithStack(err)
 				}
