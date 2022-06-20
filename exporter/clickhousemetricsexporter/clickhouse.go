@@ -309,8 +309,8 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			for _, s := range ts.Samples {
 				err = statement.Append(
 					fingerprintToName[fingerprint],
-					s.Timestamp,
 					fingerprint,
+					s.Timestamp,
 					s.Value,
 				)
 				if err != nil {
