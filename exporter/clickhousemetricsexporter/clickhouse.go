@@ -84,13 +84,13 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 	queries = append(queries, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.samples_v2 (
 			metric_name LowCardinality(String),
-			timestamp_ms Int64 Codec(DoubleDelta, LZ4),
 			fingerprint UInt64 Codec(DoubleDelta, LZ4),
+			timestamp_ms Int64 Codec(DoubleDelta, LZ4),
 			value Float64 Codec(Gorilla, LZ4)
 		)
 		ENGINE = MergeTree
 			PARTITION BY toDate(timestamp_ms / 1000)
-			ORDER BY (metric_name, timestamp_ms, fingerprint)`, database))
+			ORDER BY (metric_name, fingerprint, timestamp_ms)`, database))
 
 	queries = append(queries, `SET allow_experimental_object_type = 1`)
 
