@@ -560,6 +560,11 @@ func (p *processorImp) updateExternalCallLatencyMetrics(key metricKey, latency f
 	p.externalCallLatencySum[key] += latency
 	p.externalCallLatencyCount[key]++
 	p.externalCallLatencyBucketCounts[key][index]++
+	p.logger.Info("aggregate values",
+		zap.Any("Key", key),
+		zap.Any("Latency count", p.externalCallLatencyCount[key]),
+		zap.Any("Latenct sum", p.externalCallLatencySum[key]),
+	)
 }
 
 // resetAccumulatedMetrics resets the internal maps used to store created metric data. Also purge the cache for
