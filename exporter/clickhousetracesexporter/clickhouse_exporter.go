@@ -154,10 +154,16 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 		} else if k == "peer.service" {
 			span.PeerService = v.StringVal()
 		} else if k == "rpc.grpc.status_code" {
-			if v.IntVal() >= 2 {
+			// Handle both string/int status code in GRPC spans.
+			statusString, err := strconv.Atoi(v.StringVal())
+			statusInt := v.IntVal()
+			if err == nil && statusString != 0 {
+				statusInt = int64(statusString)
+			}
+			if statusInt >= 2 {
 				span.HasError = true
 			}
-			span.GRPCCode = strconv.FormatInt(v.IntVal(), 10)
+			span.GRPCCode = strconv.FormatInt(statusInt, 10)
 		} else if k == "rpc.method" {
 			span.GRPCMethod = v.StringVal()
 		}
