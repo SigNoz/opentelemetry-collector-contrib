@@ -510,15 +510,17 @@ func (p *processorImp) aggregateMetricsForSpan(serviceName string, span pdata.Sp
 
 	spanAttr := span.Attributes()
 	_, externalCallPresent := spanAttr.Get("http.url")
-
-	if span.Kind() == 3 && externalCallPresent {
+	// TODO(srikanthccv): This should also include the RPC calls. When there is no `http.url`
+	// we should try if the URL parts (`http.scheme`, `http.host`, `http.port`)
+	// as recommended by HTTP semconv.
+	if span.Kind() == pdata.SpanKindClient && externalCallPresent {
 		externalCallKey := buildCustomKey(serviceName, span, p.externalCallDimensions, resourceAttr)
 		p.externalCallCache(serviceName, span, externalCallKey, resourceAttr)
 		p.updateExternalCallLatencyMetrics(externalCallKey, latencyInMilliseconds, index)
 	}
 
 	_, dbCallPresent := spanAttr.Get("db.system")
-	if span.Kind() == 3 && dbCallPresent {
+	if span.Kind() != pdata.SpanKindServer && dbCallPresent {
 		dbKey := buildCustomKey(serviceName, span, p.dbCallDimensions, resourceAttr)
 		p.dbCache(serviceName, span, dbKey, resourceAttr)
 		p.updateDBLatencyMetrics(dbKey, latencyInMilliseconds, index)
