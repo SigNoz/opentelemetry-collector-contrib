@@ -508,11 +508,42 @@ func (p *processorImp) aggregateMetricsForSpan(serviceName string, span pdata.Sp
 	p.cache(serviceName, span, key, resourceAttr)
 	p.updateLatencyMetrics(key, latencyInMilliseconds, index)
 
+	/*
+		At least one of the following sets of attributes is required for outbound HTTP reqs:
+
+		- http.scheme, http.host, http.target
+		- http.scheme, http.server_name, net.host.port, http.target
+		- http.scheme, net.host.name, net.host.port, http.target
+		- http.url
+
+		And the following attributes are required for RPC calls
+
+		- rpc.system, rpc.service, rpc.method
+	*/
+
 	spanAttr := span.Attributes()
-	_, externalCallPresent := spanAttr.Get("http.url")
-	// TODO(srikanthccv): This should also include the RPC calls. When there is no `http.url`
-	// we should try if the URL parts (`http.scheme`, `http.host`, `http.port`)
-	// as recommended by HTTP semconv.
+	var externalCallPresent bool
+	oneOfRequiredAttributeSets := [][]string{
+		// HTTP
+		[]string{"http.url"},
+		[]string{"http.scheme", "http.host", "http.target"},
+		[]string{"http.scheme", "http.server_name", "net.host.port", "http.target"},
+		[]string{"http.scheme", "net.host.name", "net.host.port", "http.target"},
+		// RPC
+		[]string{"rpc.system", "rpc.service", "rpc.method"},
+	}
+	for _, attributeSet := range oneOfRequiredAttributeSets {
+		exists := true
+		for _, attributeName := range attributeSet {
+			_, ok := spanAttr.Get(attributeName)
+			exists = exists && ok
+		}
+		if exists {
+			externalCallPresent = true
+			break
+		}
+	}
+
 	if span.Kind() == pdata.SpanKindClient && externalCallPresent {
 		externalCallKey := buildCustomKey(serviceName, span, p.externalCallDimensions, resourceAttr)
 		p.externalCallCache(serviceName, span, externalCallKey, resourceAttr)
