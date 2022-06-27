@@ -6,8 +6,8 @@ networks:
 services:
   otel-collector:
     build:
-      context: ../../../local
-      dockerfile: ../exporter/clickhouseexporter/example/Dockerfile
+      context: ../../..
+      dockerfile: exporter/clickhouselogsexporter/example/Dockerfile
     # Uncomment the next line to use a preexisting image
     # image: otelcontribcol:latest
     container_name: otel
