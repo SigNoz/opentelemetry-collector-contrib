@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clickhouseexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter"
+package clickhouselogsexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouselogsexporter"
 
 import (
 	"context"
@@ -25,24 +25,24 @@ import (
 
 const (
 	// The value of "type" key in configuration.
-	typeStr = "clickhouse"
+	typeStr = "clickhouselogsexporter"
 )
 
 // NewFactory creates a factory for Elastic exporter.
 func NewFactory() component.ExporterFactory {
-	return component.NewExporterFactory(
+	return exporterhelper.NewFactory(
 		typeStr,
 		createDefaultConfig,
-		component.WithLogsExporter(createLogsExporter),
+		exporterhelper.WithLogs(createLogsExporter),
 	)
 }
 
 func createDefaultConfig() config.Exporter {
 	return &Config{
 		ExporterSettings: config.NewExporterSettings(config.NewComponentID(typeStr)),
-		TimeoutSettings:  exporterhelper.NewDefaultTimeoutSettings(),
-		QueueSettings:    QueueSettings{QueueSize: exporterhelper.NewDefaultQueueSettings().QueueSize},
-		RetrySettings:    exporterhelper.NewDefaultRetrySettings(),
+		TimeoutSettings:  exporterhelper.DefaultTimeoutSettings(),
+		QueueSettings:    QueueSettings{QueueSize: exporterhelper.DefaultQueueSettings().QueueSize},
+		RetrySettings:    exporterhelper.DefaultRetrySettings(),
 		LogsTableName:    "otel_logs",
 	}
 }

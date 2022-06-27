@@ -24,6 +24,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/azuremonitorexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/carbonexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouselogsexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhousemetricsexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhousetracesexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter"
@@ -234,6 +235,7 @@ func Components() (component.Factories, error) {
 		awsxrayexporter.NewFactory(),
 		azuremonitorexporter.NewFactory(),
 		carbonexporter.NewFactory(),
+		clickhouselogsexporter.NewFactory(),
 		clickhousemetricsexporter.NewFactory(),
 		clickhousetracesexporter.NewFactory(),
 		clickhouseexporter.NewFactory(),

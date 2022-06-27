@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clickhouseexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter"
+package clickhouselogsexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouselogsexporter"
 
 import (
 	"context"
@@ -21,13 +21,12 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/ClickHouse/clickhouse-go" // For register database driver.
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/plog"
+	_ "github.com/ClickHouse/clickhouse-go/v2" // For register database driver.
+	"go.opentelemetry.io/collector/model/pdata"
 	"go.uber.org/zap"
 )
 
-type clickhouseExporter struct {
+type clickhouselogsexporter struct {
 	client        *sql.DB
 	insertLogsSQL string
 
@@ -35,7 +34,7 @@ type clickhouseExporter struct {
 	cfg    *Config
 }
 
-func newExporter(logger *zap.Logger, cfg *Config) (*clickhouseExporter, error) {
+func newExporter(logger *zap.Logger, cfg *Config) (*clickhouselogsexporter, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -47,7 +46,7 @@ func newExporter(logger *zap.Logger, cfg *Config) (*clickhouseExporter, error) {
 
 	insertLogsSQL := renderInsertLogsSQL(cfg)
 
-	return &clickhouseExporter{
+	return &clickhouselogsexporter{
 		client:        client,
 		insertLogsSQL: insertLogsSQL,
 		logger:        logger,
@@ -56,14 +55,14 @@ func newExporter(logger *zap.Logger, cfg *Config) (*clickhouseExporter, error) {
 }
 
 // Shutdown will shutdown the exporter.
-func (e *clickhouseExporter) Shutdown(_ context.Context) error {
+func (e *clickhouselogsexporter) Shutdown(_ context.Context) error {
 	if e.client != nil {
 		return e.client.Close()
 	}
 	return nil
 }
 
-func (e *clickhouseExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
+func (e *clickhouselogsexporter) pushLogsData(ctx context.Context, ld pdata.Logs) error {
 	start := time.Now()
 	err := doWithTx(ctx, e.client, func(tx *sql.Tx) error {
 		statement, err := tx.PrepareContext(ctx, e.insertLogsSQL)
@@ -77,8 +76,8 @@ func (e *clickhouseExporter) pushLogsData(ctx context.Context, ld plog.Logs) err
 			logs := ld.ResourceLogs().At(i)
 			res := logs.Resource()
 			resourceKeys, resourceValues := attributesToSlice(res.Attributes())
-			for j := 0; j < logs.ScopeLogs().Len(); j++ {
-				rs := logs.ScopeLogs().At(j).LogRecords()
+			for j := 0; j < logs.InstrumentationLibraryLogs().Len(); j++ {
+				rs := logs.InstrumentationLibraryLogs().At(j).LogRecords()
 				for k := 0; k < rs.Len(); k++ {
 					r := rs.At(k)
 					attrKeys, attrValues := attributesToSlice(r.Attributes())
@@ -109,10 +108,10 @@ func (e *clickhouseExporter) pushLogsData(ctx context.Context, ld plog.Logs) err
 	return err
 }
 
-func attributesToSlice(attributes pcommon.Map) ([]string, []string) {
+func attributesToSlice(attributes pdata.AttributeMap) ([]string, []string) {
 	keys := make([]string, 0, attributes.Len())
 	values := make([]string, 0, attributes.Len())
-	attributes.Range(func(k string, v pcommon.Value) bool {
+	attributes.Range(func(k string, v pdata.AttributeValue) bool {
 		keys = append(keys, formatKey(k))
 		values = append(values, v.AsString())
 		return true
