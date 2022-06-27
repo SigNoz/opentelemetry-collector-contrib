@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.45.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.5
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/collector/model v0.45.0
@@ -37,7 +37,7 @@ require (
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/internal/common => ../../internal/common
