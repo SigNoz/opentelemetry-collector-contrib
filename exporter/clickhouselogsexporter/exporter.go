@@ -87,7 +87,7 @@ func (e *clickhouselogsexporter) pushLogsData(ctx context.Context, ld pdata.Logs
 						r.SpanID().HexString(),
 						r.Flags(),
 						r.SeverityText(),
-						r.SeverityNumber(),
+						int32(r.SeverityNumber()),
 						r.Body().AsString(),
 						resourceKeys,
 						resourceValues,
