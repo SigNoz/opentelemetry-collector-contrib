@@ -102,12 +102,12 @@ func NewClickHouse(params *ClickHouseParams) (base.Storage, error) {
 		CREATE TABLE IF NOT EXISTS %s.time_series_v2 (
 			metric_name LowCardinality(String),
 			fingerprint UInt64 Codec(DoubleDelta, LZ4),
-			date Date Codec(DoubleDelta, LZ4),
+			timestamp_ms Int64 Codec(DoubleDelta, LZ4),
 			labels String Codec(ZSTD(5)),
 			labels_object JSON DEFAULT labels CODEC(ZSTD(5))
 		)
 		ENGINE = ReplacingMergeTree
-			PARTITION BY date
+			PARTITION BY toDate(timestamp_ms / 1000)
 			ORDER BY (metric_name, fingerprint)`, database))
 
 	options := &clickhouse.Options{
@@ -271,16 +271,16 @@ func (ch *clickHouse) Write(ctx context.Context, data *prompb.WriteRequest) erro
 			return err
 		}
 
-		statement, err := ch.conn.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s.time_series_v2 (metric_name, date, fingerprint, labels) VALUES (?, ?, ?, ?)", ch.database))
+		statement, err := ch.conn.PrepareBatch(ctx, fmt.Sprintf("INSERT INTO %s.time_series_v2 (metric_name, timestamp_ms, fingerprint, labels) VALUES (?, ?, ?, ?)", ch.database))
 		if err != nil {
 			return err
 		}
-		date := model.Now().Time()
+		timestamp := model.Now().Time().UnixMilli()
 		for fingerprint, labels := range newTimeSeries {
 			encodedLabels := string(marshalLabels(labels, make([]byte, 0, 128)))
 			err = statement.Append(
 				fingerprintToName[fingerprint],
-				date,
+				timestamp,
 				fingerprint,
 				encodedLabels,
 			)
