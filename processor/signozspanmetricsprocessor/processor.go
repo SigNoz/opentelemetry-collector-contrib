@@ -39,12 +39,10 @@ const (
 	operationKey               = "operation" // is there a constant we can refer to?
 	spanKindKey                = "span.kind"
 	statusCodeKey              = "status.code"
-	TagHTTPStatusCode          = conventions.AttributeHTTPStatusCode
-	TagHTTPUrl                 = "http.url"
 	metricKeySeparator         = string(byte(0))
 	traceIDKey                 = "trace_id"
 	defaultDimensionsCacheSize = 1000
-	RESOURCE_PREFIX            = "resource_"
+	resourcePrefix             = "resource_"
 )
 
 var (
@@ -54,7 +52,6 @@ var (
 	defaultLatencyHistogramBucketsMs = []float64{
 		2, 4, 6, 8, 10, 50, 100, 200, 400, 800, 1000, 1400, 2000, 5000, 10_000, 15_000, maxDurationMs,
 	}
-	emptyLatencyHistogramBucketsMs = []float64{}
 )
 
 type metricKey string
@@ -85,13 +82,11 @@ type processorImp struct {
 
 	latencyBounds []float64
 
-	dbLatencyCount        map[metricKey]uint64
-	dbLatencySum          map[metricKey]float64
-	dbLatencyBucketCounts map[metricKey][]uint64
+	dbLatencyCount map[metricKey]uint64
+	dbLatencySum   map[metricKey]float64
 
-	externalCallLatencyCount        map[metricKey]uint64
-	externalCallLatencySum          map[metricKey]float64
-	externalCallLatencyBucketCounts map[metricKey][]uint64
+	externalCallLatencyCount map[metricKey]uint64
+	externalCallLatencySum   map[metricKey]float64
 
 	// A cache of dimension key-value maps keyed by a unique identifier formed by a concatenation of its values:
 	// e.g. { "foo/barOK": { "serviceName": "foo", "operation": "/bar", "status_code": "OK" }}
@@ -119,26 +114,16 @@ func newProcessor(logger *zap.Logger, config config.Processor, nextConsumer cons
 		return nil, err
 	}
 
-	callDimensions := []Dimension{
-		// {Name: operationKey},
-		// {Name: spanKindKey},
-		// {Name: statusCodeKey},
-		{Name: TagHTTPStatusCode},
-	}
+	var callDimensions []Dimension
 	callDimensions = append(callDimensions, pConfig.Dimensions...)
 
 	dbCallDimensions := []Dimension{
 		{Name: "db.system"},
 		{Name: "db.name"},
-		{Name: "db.operation"},
 	}
 	dbCallDimensions = append(dbCallDimensions, pConfig.Dimensions...)
 
-	externalCallDimensions := []Dimension{
-		{Name: "http.status_code"},
-		{Name: TagHTTPUrl},
-		{Name: "http.method"},
-	}
+	var externalCallDimensions []Dimension
 	externalCallDimensions = append(externalCallDimensions, pConfig.Dimensions...)
 
 	if pConfig.DimensionsCacheSize <= 0 {
@@ -174,10 +159,8 @@ func newProcessor(logger *zap.Logger, config config.Processor, nextConsumer cons
 		latencyBucketCounts:               make(map[metricKey][]uint64),
 		dbLatencySum:                      make(map[metricKey]float64),
 		dbLatencyCount:                    make(map[metricKey]uint64),
-		dbLatencyBucketCounts:             make(map[metricKey][]uint64),
 		externalCallLatencySum:            make(map[metricKey]float64),
 		externalCallLatencyCount:          make(map[metricKey]uint64),
-		externalCallLatencyBucketCounts:   make(map[metricKey][]uint64),
 		nextConsumer:                      nextConsumer,
 		dimensions:                        pConfig.Dimensions,
 		callDimensions:                    callDimensions,
@@ -368,22 +351,31 @@ func (p *processorImp) collectLatencyMetrics(ilm pdata.InstrumentationLibraryMet
 	return nil
 }
 
-// collectExternalCallMetrics collects the raw latency metrics, writing the data
+// collectDBCallMetrics collects the raw latency sum and count metrics, writing the data
 // into the given instrumentation library metrics.
 func (p *processorImp) collectDBCallMetrics(ilm pdata.InstrumentationLibraryMetrics) error {
 	for key := range p.dbLatencyCount {
-		mLatency := ilm.Metrics().AppendEmpty()
-		mLatency.SetDataType(pdata.MetricDataTypeHistogram)
-		mLatency.SetName("signoz_db_latency")
-		mLatency.Histogram().SetAggregationTemporality(p.config.GetAggregationTemporality())
+		dbCallSum := ilm.Metrics().AppendEmpty()
+		dbCallSum.SetDataType(pdata.MetricDataTypeSum)
+		dbCallSum.SetName("signoz_db_latency_sum")
+		dbCallSum.Sum().SetIsMonotonic(true)
+		dbCallSum.Sum().SetAggregationTemporality(p.config.GetAggregationTemporality())
 
-		dpLatency := mLatency.Histogram().DataPoints().AppendEmpty()
-		dpLatency.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
-		dpLatency.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
-		dpLatency.SetExplicitBounds(p.latencyBounds)
-		dpLatency.SetBucketCounts(p.dbLatencyBucketCounts[key])
-		dpLatency.SetCount(p.dbLatencyCount[key])
-		dpLatency.SetSum(p.dbLatencySum[key])
+		dbCallCount := ilm.Metrics().AppendEmpty()
+		dbCallCount.SetDataType(pdata.MetricDataTypeSum)
+		dbCallCount.SetName("signoz_db_latency_count")
+		dbCallCount.Sum().SetIsMonotonic(true)
+		dbCallCount.Sum().SetAggregationTemporality(p.config.GetAggregationTemporality())
+
+		dpCallSumCalls := dbCallSum.Sum().DataPoints().AppendEmpty()
+		dpCallSumCalls.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
+		dpCallSumCalls.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
+		dpCallSumCalls.SetDoubleVal(p.dbLatencySum[key])
+
+		dpCallCountCalls := dbCallCount.Sum().DataPoints().AppendEmpty()
+		dpCallCountCalls.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
+		dpCallCountCalls.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
+		dpCallCountCalls.SetIntVal(int64(p.dbLatencyCount[key]))
 
 		dimensions, err := p.getDimensionsByMetricKey(p.dbMetricKeyToDimensions, key)
 		if err != nil {
@@ -391,7 +383,8 @@ func (p *processorImp) collectDBCallMetrics(ilm pdata.InstrumentationLibraryMetr
 			return err
 		}
 
-		dimensions.CopyTo(dpLatency.Attributes())
+		dimensions.CopyTo(dpCallSumCalls.Attributes())
+		dimensions.CopyTo(dpCallCountCalls.Attributes())
 	}
 	return nil
 }
@@ -400,18 +393,27 @@ func (p *processorImp) collectDBCallMetrics(ilm pdata.InstrumentationLibraryMetr
 // into the given instrumentation library metrics.
 func (p *processorImp) collectExternalCallMetrics(ilm pdata.InstrumentationLibraryMetrics) error {
 	for key := range p.externalCallLatencyCount {
-		mLatency := ilm.Metrics().AppendEmpty()
-		mLatency.SetDataType(pdata.MetricDataTypeHistogram)
-		mLatency.SetName("signoz_external_call_latency")
-		mLatency.Histogram().SetAggregationTemporality(p.config.GetAggregationTemporality())
+		externalCallSum := ilm.Metrics().AppendEmpty()
+		externalCallSum.SetDataType(pdata.MetricDataTypeSum)
+		externalCallSum.SetName("signoz_external_call_latency_sum")
+		externalCallSum.Sum().SetIsMonotonic(true)
+		externalCallSum.Sum().SetAggregationTemporality(p.config.GetAggregationTemporality())
 
-		dpLatency := mLatency.Histogram().DataPoints().AppendEmpty()
-		dpLatency.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
-		dpLatency.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
-		dpLatency.SetExplicitBounds(p.latencyBounds)
-		dpLatency.SetBucketCounts(p.externalCallLatencyBucketCounts[key])
-		dpLatency.SetCount(p.externalCallLatencyCount[key])
-		dpLatency.SetSum(p.externalCallLatencySum[key])
+		externalCallCount := ilm.Metrics().AppendEmpty()
+		externalCallCount.SetDataType(pdata.MetricDataTypeSum)
+		externalCallCount.SetName("signoz_external_call_latency_count")
+		externalCallCount.Sum().SetIsMonotonic(true)
+		externalCallCount.Sum().SetAggregationTemporality(p.config.GetAggregationTemporality())
+
+		dpCallSumCalls := externalCallSum.Sum().DataPoints().AppendEmpty()
+		dpCallSumCalls.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
+		dpCallSumCalls.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
+		dpCallSumCalls.SetDoubleVal(p.externalCallLatencySum[key])
+
+		dpCallCountCalls := externalCallCount.Sum().DataPoints().AppendEmpty()
+		dpCallCountCalls.SetStartTimestamp(pdata.NewTimestampFromTime(p.startTime))
+		dpCallCountCalls.SetTimestamp(pdata.NewTimestampFromTime(time.Now()))
+		dpCallCountCalls.SetIntVal(int64(p.externalCallLatencyCount[key]))
 
 		dimensions, err := p.getDimensionsByMetricKey(p.externalCallMetricKeyToDimensions, key)
 		if err != nil {
@@ -419,7 +421,8 @@ func (p *processorImp) collectExternalCallMetrics(ilm pdata.InstrumentationLibra
 			return err
 		}
 
-		dimensions.CopyTo(dpLatency.Attributes())
+		dimensions.CopyTo(dpCallSumCalls.Attributes())
+		dimensions.CopyTo(dpCallCountCalls.Attributes())
 	}
 	return nil
 }
@@ -492,6 +495,87 @@ func (p *processorImp) aggregateMetricsForServiceSpans(rspans pdata.ResourceSpan
 	}
 }
 
+func getRemoteAddress(span pdata.Span) (string, bool) {
+	var addr string
+
+	getPeerAddress := func(attrs pdata.AttributeMap) (string, bool) {
+		var addr string
+		// Since net.peer.name is readable, it is preferred over net.peer.ip.
+		peerName, ok := attrs.Get(conventions.AttributeNetPeerName)
+		if ok {
+			addr = peerName.StringVal()
+			port, ok := attrs.Get(conventions.AttributeNetPeerPort)
+			if ok {
+				addr += ":" + port.StringVal()
+			}
+			return addr, true
+		}
+		peerIp, ok := attrs.Get(conventions.AttributeNetPeerIP)
+		if ok {
+			addr = peerIp.StringVal()
+			port, ok := attrs.Get(conventions.AttributeNetPeerPort)
+			if ok {
+				addr += ":" + port.StringVal()
+			}
+			return addr, true
+		}
+		return "", false
+	}
+
+	attrs := span.Attributes()
+	_, isRPC := attrs.Get(conventions.AttributeRPCSystem)
+	// If the span is an RPC, the remote address is service/method.
+	if isRPC {
+		service, svcOK := attrs.Get(conventions.AttributeRPCService)
+		if svcOK {
+			addr = service.StringVal()
+		}
+		method, methodOK := attrs.Get(conventions.AttributeRPCMethod)
+		if methodOK {
+			addr += "/" + method.StringVal()
+		}
+		if addr != "" {
+			return addr, true
+		}
+		// Ideally shouldn't reach here but if for some reason
+		// service/method not set for RPC, fallback to peer address.
+		return getPeerAddress(attrs)
+	}
+
+	// If HTTP host is set, use it.
+	host, ok := attrs.Get(conventions.AttributeHTTPHost)
+	if ok {
+		return host.StringVal(), true
+	}
+
+	peerAddress, ok := getPeerAddress(attrs)
+	if ok {
+		// If the peer address is set and the transport is not unix domain socket, or pipe
+		transport, ok := attrs.Get(conventions.AttributeNetTransport)
+		if ok && transport.StringVal() == "unix" && transport.StringVal() == "pipe" {
+			return "", false
+		}
+		return peerAddress, true
+	}
+
+	// If none of the above is set, check for full URL.
+	httpURL, ok := attrs.Get(conventions.AttributeHTTPURL)
+	if ok {
+		parsedURL, err := url.Parse(httpURL.StringVal())
+		if err != nil {
+			return "", false
+		}
+		return parsedURL.Host, true
+	}
+
+	peerService, ok := attrs.Get(conventions.AttributePeerService)
+	if ok {
+		return peerService.StringVal(), true
+	}
+
+	return "", false
+}
+
 func (p *processorImp) aggregateMetricsForSpan(serviceName string, span pdata.Span, resourceAttr pdata.AttributeMap) {
 	latencyInMilliseconds := float64(span.EndTimestamp()-span.StartTimestamp()) / float64(time.Millisecond.Nanoseconds())
 
@@ -508,53 +592,24 @@ func (p *processorImp) aggregateMetricsForSpan(serviceName string, span pdata.Sp
 	p.cache(serviceName, span, key, resourceAttr)
 	p.updateLatencyMetrics(key, latencyInMilliseconds, index)
 
-	/*
-		At least one of the following sets of attributes is required for outbound HTTP reqs:
-
-		- http.scheme, http.host, http.target
-		- http.scheme, http.server_name, net.host.port, http.target
-		- http.scheme, net.host.name, net.host.port, http.target
-		- http.url
-
-		And the following attributes are required for RPC calls
-
-		- rpc.system, rpc.service, rpc.method
-	*/
-
 	spanAttr := span.Attributes()
-	var externalCallPresent bool
-	oneOfRequiredAttributeSets := [][]string{
-		// HTTP
-		[]string{"http.url"},
-		[]string{"http.scheme", "http.host", "http.target"},
-		[]string{"http.scheme", "http.server_name", "net.host.port", "http.target"},
-		[]string{"http.scheme", "net.host.name", "net.host.port", "http.target"},
-		// RPC
-		[]string{"rpc.system", "rpc.service", "rpc.method"},
-	}
-	for _, attributeSet := range oneOfRequiredAttributeSets {
-		exists := true
-		for _, attributeName := range attributeSet {
-			_, ok := spanAttr.Get(attributeName)
-			exists = exists && ok
-		}
-		if exists {
-			externalCallPresent = true
-			break
-		}
-	}
+	remoteAddr, externalCallPresent := getRemoteAddress(span)
 
 	if span.Kind() == pdata.SpanKindClient && externalCallPresent {
-		externalCallKey := buildCustomKey(serviceName, span, p.externalCallDimensions, resourceAttr)
-		p.externalCallCache(serviceName, span, externalCallKey, resourceAttr)
-		p.updateExternalCallLatencyMetrics(externalCallKey, latencyInMilliseconds, index)
+		extraVals := []string{remoteAddr}
+		externalCallKey := buildCustomKey(serviceName, span, p.externalCallDimensions, resourceAttr, extraVals)
+		extraDims := map[string]pdata.AttributeValue{
+			"address": pdata.NewAttributeValueString(remoteAddr),
+		}
+		p.externalCallCache(serviceName, span, externalCallKey, resourceAttr, extraDims)
+		p.updateExternalCallLatencyMetrics(externalCallKey, latencyInMilliseconds)
 	}
 
 	_, dbCallPresent := spanAttr.Get("db.system")
 	if span.Kind() != pdata.SpanKindServer && dbCallPresent {
-		dbKey := buildCustomKey(serviceName, span, p.dbCallDimensions, resourceAttr)
+		dbKey := buildCustomKey(serviceName, span, p.dbCallDimensions, resourceAttr, nil)
 		p.dbCache(serviceName, span, dbKey, resourceAttr)
-		p.updateDBLatencyMetrics(dbKey, latencyInMilliseconds, index)
+		p.updateDBLatencyMetrics(dbKey, latencyInMilliseconds)
 	}
 
 	p.lock.Unlock()
@@ -576,23 +631,15 @@ func (p *processorImp) updateLatencyMetrics(key metricKey, latency float64, inde
 }
 
 // updateDBLatencyMetrics increments the histogram counts for the given metric key and bucket index.
-func (p *processorImp) updateDBLatencyMetrics(key metricKey, latency float64, index int) {
-	if _, ok := p.dbLatencyBucketCounts[key]; !ok {
-		p.dbLatencyBucketCounts[key] = make([]uint64, len(p.latencyBounds))
-	}
+func (p *processorImp) updateDBLatencyMetrics(key metricKey, latency float64) {
 	p.dbLatencySum[key] += latency
 	p.dbLatencyCount[key]++
-	p.dbLatencyBucketCounts[key][index]++
 }
 
 // updateExternalCallLatencyMetrics increments the histogram counts for the given metric key and bucket index.
-func (p *processorImp) updateExternalCallLatencyMetrics(key metricKey, latency float64, index int) {
-	if _, ok := p.externalCallLatencyBucketCounts[key]; !ok {
-		p.externalCallLatencyBucketCounts[key] = make([]uint64, len(p.latencyBounds))
-	}
+func (p *processorImp) updateExternalCallLatencyMetrics(key metricKey, latency float64) {
 	p.externalCallLatencySum[key] += latency
 	p.externalCallLatencyCount[key]++
-	p.externalCallLatencyBucketCounts[key][index]++
 }
 
 // resetAccumulatedMetrics resets the internal maps used to store created metric data. Also purge the cache for
@@ -609,8 +656,6 @@ func (p *processorImp) resetAccumulatedMetrics() {
 	p.externalCallLatencySum = make(map[metricKey]float64)
 
 	p.latencyBucketCounts = make(map[metricKey][]uint64)
-	p.externalCallLatencyBucketCounts = make(map[metricKey][]uint64)
-	p.dbLatencyBucketCounts = make(map[metricKey][]uint64)
 
 	p.metricKeyToDimensions.Purge()
 	p.callMetricKeyToDimensions.Purge()
@@ -619,12 +664,13 @@ func (p *processorImp) resetAccumulatedMetrics() {
 
 }
 
-func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Span, optionalDims []Dimension, resourceAttrs pdata.AttributeMap) pdata.AttributeMap {
+func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Span, optionalDims []Dimension, resourceAttrs pdata.AttributeMap, extraDims map[string]pdata.AttributeValue) pdata.AttributeMap {
 	dims := pdata.NewAttributeMap()
 
 	dims.UpsertString(serviceNameKey, serviceName)
-	// dims.UpsertString(operationKey, span.Name())
-	// dims.UpsertString(spanKindKey, span.Kind().String())
+	for k, v := range extraDims {
+		dims.Upsert(k, v)
+	}
 	dims.UpsertString(statusCodeKey, span.Status().Code().String())
 
 	for _, d := range optionalDims {
@@ -634,10 +680,9 @@ func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Sp
 			dims.Upsert(d.Name, v)
 		}
 		if foundInResource {
-			dims.Upsert(RESOURCE_PREFIX+d.Name, v)
+			dims.Upsert(resourcePrefix+d.Name, v)
 		}
 	}
-
 	return dims
 }
 
@@ -651,15 +696,6 @@ func (p *processorImp) buildCustomDimensionKVs(serviceName string, span pdata.Sp
 func getDimensionValue(d Dimension, spanAttr pdata.AttributeMap, resourceAttr pdata.AttributeMap) (v pdata.AttributeValue, ok bool, foundInResource bool) {
 	// The more specific span attribute should take precedence.
 	if attr, exists := spanAttr.Get(d.Name); exists {
-		if d.Name == TagHTTPUrl {
-
-			value := attr.StringVal()
-			valueUrl, err := url.Parse(value)
-			if err == nil {
-				value = valueUrl.Hostname()
-			}
-			attr = pdata.NewAttributeValueString(value)
-		}
 		return attr, true, false
 	}
 
@@ -686,7 +722,7 @@ func (p *processorImp) buildDimensionKVs(serviceName string, span pdata.Span, op
 			dims.Upsert(d.Name, v)
 		}
 		if foundInResource {
-			dims.Upsert(RESOURCE_PREFIX+d.Name, v)
+			dims.Upsert(resourcePrefix+d.Name, v)
 		}
 	}
 	return dims
@@ -704,12 +740,14 @@ func concatDimensionValue(metricKeyBuilder *strings.Builder, value string, prefi
 // buildCustomKey builds the metric key from the service name and span metadata such as operation, kind, status_code and
 // any additional dimensions the user has configured.
 // The metric key is a simple concatenation of dimension values.
-func buildCustomKey(serviceName string, span pdata.Span, optionalDims []Dimension, resourceAttrs pdata.AttributeMap) metricKey {
+func buildCustomKey(serviceName string, span pdata.Span, optionalDims []Dimension, resourceAttrs pdata.AttributeMap, extraVals []string) metricKey {
 	var metricKeyBuilder strings.Builder
 	concatDimensionValue(&metricKeyBuilder, serviceName, false)
-	// concatDimensionValue(&metricKeyBuilder, span.Name(), true)
-	// concatDimensionValue(&metricKeyBuilder, span.Kind().String(), true)
 	concatDimensionValue(&metricKeyBuilder, span.Status().Code().String(), true)
+
+	for _, val := range extraVals {
+		concatDimensionValue(&metricKeyBuilder, val, true)
+	}
 
 	for _, d := range optionalDims {
 		v, ok, foundInResource := getDimensionValue(d, span.Attributes(), resourceAttrs)
@@ -717,7 +755,7 @@ func buildCustomKey(serviceName string, span pdata.Span, optionalDims []Dimensio
 			concatDimensionValue(&metricKeyBuilder, v.AsString(), true)
 		}
 		if foundInResource {
-			concatDimensionValue(&metricKeyBuilder, RESOURCE_PREFIX+v.AsString(), true)
+			concatDimensionValue(&metricKeyBuilder, resourcePrefix+v.AsString(), true)
 		}
 	}
 
@@ -744,7 +782,7 @@ func buildKey(serviceName string, span pdata.Span, optionalDims []Dimension, res
 			concatDimensionValue(&metricKeyBuilder, v.AsString(), true)
 		}
 		if foundInResource {
-			concatDimensionValue(&metricKeyBuilder, RESOURCE_PREFIX+v.AsString(), true)
+			concatDimensionValue(&metricKeyBuilder, resourcePrefix+v.AsString(), true)
 		}
 	}
 
@@ -755,15 +793,17 @@ func buildKey(serviceName string, span pdata.Span, optionalDims []Dimension, res
 // cache the dimension key-value map for the metricKey if there is a cache miss.
 // This enables a lookup of the dimension key-value map when constructing the metric like so:
 //   LabelsMap().InitFromMap(p.metricKeyToDimensions[key])
-func (p *processorImp) externalCallCache(serviceName string, span pdata.Span, k metricKey, resourceAttrs pdata.AttributeMap) {
-	p.externalCallMetricKeyToDimensions.ContainsOrAdd(k, p.buildCustomDimensionKVs(serviceName, span, p.externalCallDimensions, resourceAttrs))
+func (p *processorImp) externalCallCache(serviceName string, span pdata.Span, k metricKey, resourceAttrs pdata.AttributeMap, extraDims map[string]pdata.AttributeValue) {
+	kvs := p.buildCustomDimensionKVs(serviceName, span, p.externalCallDimensions, resourceAttrs, extraDims)
+	p.logger.Info("externalCallCache", zap.Any("kvs", kvs.AsRaw()))
+	p.externalCallMetricKeyToDimensions.ContainsOrAdd(k, kvs)
 }
 
 // cache the dimension key-value map for the metricKey if there is a cache miss.
 // This enables a lookup of the dimension key-value map when constructing the metric like so:
 //   LabelsMap().InitFromMap(p.metricKeyToDimensions[key])
 func (p *processorImp) dbCache(serviceName string, span pdata.Span, k metricKey, resourceAttrs pdata.AttributeMap) {
-	p.dbMetricKeyToDimensions.ContainsOrAdd(k, p.buildCustomDimensionKVs(serviceName, span, p.dbCallDimensions, resourceAttrs))
+	p.dbMetricKeyToDimensions.ContainsOrAdd(k, p.buildCustomDimensionKVs(serviceName, span, p.dbCallDimensions, resourceAttrs, nil))
 }
 
 // cache the dimension key-value map for the metricKey if there is a cache miss.

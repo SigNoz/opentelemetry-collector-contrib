@@ -165,7 +165,15 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 			}
 			span.GRPCCode = strconv.FormatInt(statusInt, 10)
 		} else if k == "rpc.method" {
-			span.GRPCMethod = v.StringVal()
+			span.RPCMethod = v.StringVal()
+			system, found := attributes.Get("rpc.system")
+			if found && system.StringVal() == "grpc" {
+				span.GRPCMethod = v.StringVal()
+			}
+		} else if k == "rpc.service" {
+			span.RPCService = v.StringVal()
+		} else if k == "rpc.system" {
+			span.RPCSystem = v.StringVal()
 		}
 
 		return true

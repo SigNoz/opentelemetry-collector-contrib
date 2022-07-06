@@ -1,0 +1,4 @@
+ALTER TABLE signoz_traces.signoz_index_v2
+    DROP COLUMN IF EXISTS RPCSystem,
+    DROP COLUMN IF EXISTS RPCService,
+    DROP COLUMN IF EXISTS RPCMethod
