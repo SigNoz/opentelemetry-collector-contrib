@@ -68,9 +68,10 @@ type Span struct {
 	TraceModel         TraceModel        `json:"traceModel,omitempty"`
 	GRPCCode           string            `json:"gRPCCode,omitempty"`
 	GRPCMethod         string            `json:"gRPCMethod,omitempty"`
-	RPCSystem          string            `json:"RPCSystem,omitempty"`
-	RPCService         string            `json:"RPCService,omitempty"`
-	RPCMethod          string            `json:"RPCMethod,omitempty"`
+	RPCSystem          string            `json:"rpcSystem,omitempty"`
+	RPCService         string            `json:"rpcService,omitempty"`
+	RPCMethod          string            `json:"rpcMethod,omitempty"`
+	ResponseStatusCode string            `json:"responseStatusCode,omitempty"`
 }
 
 type OtelSpanRef struct {

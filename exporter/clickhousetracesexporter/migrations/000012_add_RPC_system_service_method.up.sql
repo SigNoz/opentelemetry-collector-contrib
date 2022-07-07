@@ -1,4 +1,9 @@
 ALTER TABLE signoz_traces.signoz_index_v2
-    ADD COLUMN IF NOT EXISTS `RPCSystem` LowCardinality(String) CODEC(ZSTD(1)),
-    ADD COLUMN IF NOT EXISTS `RPCService` LowCardinality(String) CODEC(ZSTD(1)),
-    ADD COLUMN IF NOT EXISTS `RPCMethod` LowCardinality(String) CODEC(ZSTD(1))
+    ADD COLUMN IF NOT EXISTS `rpcSystem` LowCardinality(String) CODEC(ZSTD(1)),
+    ADD COLUMN IF NOT EXISTS `rpcService` LowCardinality(String) CODEC(ZSTD(1)),
+    ADD COLUMN IF NOT EXISTS `rpcMethod` LowCardinality(String) CODEC(ZSTD(1)),
+    ADD COLUMN IF NOT EXISTS `responseStatusCode` LowCardinality(String) CODEC(ZSTD(1));
+
+ALTER TABLE signoz_traces.signoz_index_v2
+    ADD INDEX idx_rpcMethod rpcMethod TYPE bloom_filter GRANULARITY 4,
+    ADD INDEX idx_responseStatusCode responseStatusCode TYPE set(0) GRANULARITY 1;

@@ -174,6 +174,7 @@ func (w *SpanWriter) writeIndexBatch(batchSpans []*Span) error {
 			span.RPCSystem,
 			span.RPCService,
 			span.RPCMethod,
+			span.ResponseStatusCode,
 		)
 		if err != nil {
 			return err

@@ -180,6 +180,13 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 
 	})
 
+	if _, ok := attributes.Get("rpc.grpc.status_code"); ok {
+		span.ResponseStatusCode = span.GRPCCode
+	} else if jsonRPCCode, ok := attributes.Get("rpc.jsonrpc.error_code"); ok { // code only exists for errors
+		span.ResponseStatusCode = jsonRPCCode.StringVal()
+	} else if _, ok := attributes.Get("http.status_code"); ok {
+		span.ResponseStatusCode = span.HttpCode
+	}
 }
 
 func populateEvents(events pdata.SpanEventSlice, span *Span) {
