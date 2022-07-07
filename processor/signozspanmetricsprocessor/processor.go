@@ -795,7 +795,6 @@ func buildKey(serviceName string, span pdata.Span, optionalDims []Dimension, res
 //   LabelsMap().InitFromMap(p.metricKeyToDimensions[key])
 func (p *processorImp) externalCallCache(serviceName string, span pdata.Span, k metricKey, resourceAttrs pdata.AttributeMap, extraDims map[string]pdata.AttributeValue) {
 	kvs := p.buildCustomDimensionKVs(serviceName, span, p.externalCallDimensions, resourceAttrs, extraDims)
-	p.logger.Info("externalCallCache", zap.Any("kvs", kvs.AsRaw()))
 	p.externalCallMetricKeyToDimensions.ContainsOrAdd(k, kvs)
 }
 
