@@ -54,10 +54,10 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
   clickhousetraces:
-    datasource: http://stagingapp.signoz.io:9000/?database=signoz_traces
+    datasource: http://localhost:9000/?database=signoz_traces
     migrations: ../../exporter/clickhousetracesexporter/migrations
   clickhousemetricswrite:
-    endpoint: http://stagingapp.signoz.io:9000/?database=signoz_metrics
+    endpoint: http://localhost:9000/?database=signoz_metrics
     resource_to_telemetry_conversion:
       enabled: true
 
