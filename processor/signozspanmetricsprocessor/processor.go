@@ -39,6 +39,7 @@ const (
 	operationKey               = "operation" // is there a constant we can refer to?
 	spanKindKey                = "span.kind"
 	statusCodeKey              = "status.code"
+	TagHTTPStatusCode          = conventions.AttributeHTTPStatusCode
 	metricKeySeparator         = string(byte(0))
 	traceIDKey                 = "trace_id"
 	defaultDimensionsCacheSize = 1000
@@ -114,7 +115,12 @@ func newProcessor(logger *zap.Logger, config config.Processor, nextConsumer cons
 		return nil, err
 	}
 
-	var callDimensions []Dimension
+	callDimensions := []Dimension{
+		// {Name: operationKey},
+		// {Name: spanKindKey},
+		// {Name: statusCodeKey},
+		{Name: TagHTTPStatusCode},
+	}
 	callDimensions = append(callDimensions, pConfig.Dimensions...)
 
 	dbCallDimensions := []Dimension{
