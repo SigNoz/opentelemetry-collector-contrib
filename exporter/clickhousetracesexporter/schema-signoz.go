@@ -63,6 +63,7 @@ type Span struct {
 	Events             []string          `json:"event,omitempty"`
 	ErrorEvent         Event             `json:"errorEvent,omitempty"`
 	ErrorID            string            `json:"errorID,omitempty"`
+	ErrorGroupID       string            `json:"errorGroupID,omitempty"`
 	TagMap             map[string]string `json:"tagMap,omitempty"`
 	HasError           bool              `json:"hasError,omitempty"`
 	TraceModel         TraceModel        `json:"traceModel,omitempty"`
