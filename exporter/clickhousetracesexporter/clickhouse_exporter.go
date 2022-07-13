@@ -122,6 +122,7 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 				span.HasError = true
 			}
 			span.HttpCode = strconv.FormatInt(v.IntVal(), 10)
+			span.ResponseStatusCode = span.HttpCode
 		} else if k == "http.url" && span.Kind == 3 {
 			value := v.StringVal()
 			valueUrl, err := url.Parse(value)
@@ -164,6 +165,7 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 				span.HasError = true
 			}
 			span.GRPCCode = strconv.FormatInt(statusInt, 10)
+			span.ResponseStatusCode = span.GRPCCode
 		} else if k == "rpc.method" {
 			span.RPCMethod = v.StringVal()
 			system, found := attributes.Get("rpc.system")
@@ -174,19 +176,12 @@ func populateOtherDimensions(attributes pdata.AttributeMap, span *Span) {
 			span.RPCService = v.StringVal()
 		} else if k == "rpc.system" {
 			span.RPCSystem = v.StringVal()
+		} else if k == "rpc.jsonrpc.error_code" {
+			span.ResponseStatusCode = v.StringVal()
 		}
-
 		return true
 
 	})
-
-	if _, ok := attributes.Get("rpc.grpc.status_code"); ok {
-		span.ResponseStatusCode = span.GRPCCode
-	} else if jsonRPCCode, ok := attributes.Get("rpc.jsonrpc.error_code"); ok { // code only exists for errors
-		span.ResponseStatusCode = jsonRPCCode.StringVal()
-	} else if _, ok := attributes.Get("http.status_code"); ok {
-		span.ResponseStatusCode = span.HttpCode
-	}
 }
 
 func populateEvents(events pdata.SpanEventSlice, span *Span) {
