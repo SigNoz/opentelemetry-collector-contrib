@@ -16,7 +16,9 @@ package clickhousetracesexporter
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -195,6 +197,8 @@ func populateEvents(events pdata.SpanEventSlice, span *Span) {
 			uuidWithHyphen := uuid.New()
 			uuid := strings.Replace(uuidWithHyphen.String(), "-", "", -1)
 			span.ErrorID = uuid
+			hmd5 := md5.Sum([]byte(span.ServiceName + span.ErrorEvent.AttributeMap["exception.type"] + span.ErrorEvent.AttributeMap["exception.message"]))
+			span.ErrorGroupID = fmt.Sprintf("%x", hmd5)
 		}
 		stringEvent, _ := json.Marshal(event)
 		span.Events = append(span.Events, string(stringEvent))
