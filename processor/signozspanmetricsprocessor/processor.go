@@ -567,7 +567,12 @@ func getRemoteAddress(span pdata.Span) (string, bool) {
 	// If none of the above is set, check for full URL.
 	httpURL, ok := attrs.Get(conventions.AttributeHTTPURL)
 	if ok {
-		parsedURL, err := url.Parse(httpURL.StringVal())
+		urlValue := httpURL.StringVal()
+		// url pattern from godoc [scheme:][//[userinfo@]host][/]path[?query][#fragment]
+		if !strings.HasPrefix(urlValue, "http://") && !strings.HasPrefix(urlValue, "https://") {
+			urlValue = "http://" + urlValue
+		}
+		parsedURL, err := url.Parse(urlValue)
 		if err != nil {
 			return "", false
 		}
