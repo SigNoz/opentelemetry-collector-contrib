@@ -24,14 +24,14 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
@@ -57,19 +57,19 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
       - name: Cache Build
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/.cache/go-build
           key: go-build-lint-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
@@ -91,19 +91,19 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
       - name: Cache Build
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/.cache/go-build
           key: go-build-lint-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
@@ -133,19 +133,19 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
       - name: Cache Build
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/.cache/go-build
           key: go-build-unittest-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
@@ -167,14 +167,14 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
@@ -197,14 +197,14 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
@@ -226,14 +226,14 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
           key: v1-go-pkg-mod-${{ runner.os }}-${{ hashFiles('**/go.mod', '**/go.sum') }}
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
@@ -273,7 +273,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Cache Go
         id: module-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             /home/runner/go/pkg/mod
@@ -344,7 +344,7 @@ jobs:
           path: ./bin/
       - name: Cache Wix
         id: wix-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             "C:\Program Files (x86)\WiX Toolset v3.11"
@@ -401,7 +401,7 @@ jobs:
           mkdir bin/ dist/
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
@@ -460,7 +460,7 @@ jobs:
           mkdir bin/ dist/
       - name: Cache Tools
         id: tool-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: /home/runner/go/bin
           key: v1-tools-${{ runner.os }}-${{ hashFiles('./internal/tools/go.mod') }}
