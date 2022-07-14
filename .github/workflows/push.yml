@@ -2,11 +2,12 @@ name: Push - SigNoz Version Tag
 
 on:
   push:
+    branches:
+      - develop
     tags:
-      - signoz-v*
+      - v*
 
 jobs:
-
   image-build-and-push-query-service:
     runs-on: ubuntu-latest
     steps:
@@ -32,10 +33,10 @@ jobs:
         run: |
           if [ '${{ steps.branch-name.outputs.is_tag }}' == 'true' ]; then
             tag="${{ steps.branch-name.outputs.tag }}"
-            tag="${tag:8}"
+            tag="${tag:1}"
             echo "DOCKER_TAG=$tag" >> $GITHUB_ENV
-          elif [ '${{ steps.branch-name.outputs.current_branch }}' == 'signoz' ]; then
-            echo "DOCKER_TAG=latest" >> $GITHUB_ENV
+          elif [ '${{ steps.branch-name.outputs.current_branch }}' == 'develop' ]; then
+            echo "DOCKER_TAG=develop" >> $GITHUB_ENV
           else
             echo "DOCKER_TAG=${{ steps.branch-name.outputs.current_branch }}" >> $GITHUB_ENV
           fi
