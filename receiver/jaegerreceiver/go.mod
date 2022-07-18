@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/collector/model v0.45.0
 	go.uber.org/multierr v1.7.0
 	go.uber.org/zap v1.21.0
-	google.golang.org/grpc v1.44.0
+	google.golang.org/grpc v1.48.0
 )
 
 require (
