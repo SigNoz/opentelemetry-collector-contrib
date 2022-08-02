@@ -13,7 +13,7 @@ ENV COMPONENT=otelcontribcol
 ENV GOOS=$TARGETOS
 ENV GOARCH=$TARGETARCH
 
-RUN cd cmd/otelcontribcol && go build -o /out/otelcontribcol
+RUN cd cmd/otelcontribcol && go build -tags timetzdata -o /out/otelcontribcol
 
 # Final stage
 FROM scratch
@@ -29,3 +29,4 @@ COPY --from=build /src/exporter/clickhousetracesexporter/migrations /migrations
 EXPOSE 4317 55680 55679
 ENTRYPOINT ["/otelcontribcol"]
 CMD ["--config", "/etc/otel/config.yaml"]
+
