@@ -13,4 +13,4 @@ AS SELECT
   serviceName as service_name,
   count() as count
 FROM signoz_traces.signoz_index_v2
-GROUP BY toStartOfHour(timestamp) as timestamp, serviceName;
+GROUP BY timestamp, serviceName;
