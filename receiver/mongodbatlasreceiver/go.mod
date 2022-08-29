@@ -10,7 +10,7 @@ require (
 	go.mongodb.org/atlas v0.15.0
 	go.opentelemetry.io/collector v0.45.0
 	go.opentelemetry.io/collector/model v0.45.0
-	go.uber.org/zap v1.21.0
+	go.uber.org/zap v1.23.0
 )
 
 require (
